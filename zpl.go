@@ -17,8 +17,10 @@ var (
 var (
 	reskip       = regexp.MustCompile(`^\s*(#.*)?$`)
 	reskipinline = regexp.MustCompile(`\s*(#.*)?$`)
-	rekey        = regexp.MustCompile(
-		`^(?P<indent>(    )*)(?P<key>[a-zA-Z0-9][a-zA-Z0-9/]*)(\s*(?P<hasvalue>=)\s*(?P<value>[^\s].*)\s*)?$`)
+	rekeyvalue   = regexp.MustCompile(
+		`^(?P<indent>(    )*)(?P<key>[a-zA-Z0-9][a-zA-Z0-9/]*)(\s*(?P<hasvalue>=)\s*(?P<value>[^ ].*))?$`)
+	rekeyquoted = regexp.MustCompile(
+		`^(?P<indent>(    )*)(?P<key>[a-zA-Z0-9][a-zA-Z0-9/]*)(\s*(?P<hasvalue>=)\s*"(?P<value>[^ ].*)")?$`)
 )
 
 func splitLines(blob []byte) [][]byte {
@@ -48,21 +50,26 @@ type sink interface {
 func Unmarshal(src []byte, dst interface{}) error {
 	var builder sink
 	switch dst.(type) {
-	case *Section:
-		builder = &sectionBuilder{sections: []*Section{dst.(*Section)}}
+	case sink:
+		builder = dst.(sink)
+	case interface{}:
+		builder = &reflectionBuilder{pointers: []interface{}{dst}}
 	default:
 		return fmt.Errorf("cannot unmarshal ZPL into %T", dst)
 	}
 	prevDepth := 0
 	for lineno, line := range splitLines(src) {
-		if inline := bytes.IndexByte(line, '#'); inline >= 0 {
-			line = line[:inline]
-		}
+		//if inline := bytes.IndexByte(line, '#'); inline >= 0 { line = line[:inline] }
 		//if skip:=reskipinline.Find(line);skip!=nil{ line=line[:skip[0]] }
 		line = bytes.TrimRight(line, " \t\n\r") // TODO: rewhitespace
 		if len(line) == 0 || reskip.Match(line) {
 			continue
-		} else if match := rekey.FindSubmatch(line); match != nil {
+		}
+		match := rekeyquoted.FindSubmatch(line)
+		if match == nil {
+			match = rekeyvalue.FindSubmatch(line)
+		}
+		if match != nil {
 			depth := len(match[1]) / 4
 			if depth < prevDepth {
 				if err := builder.consume(&parseEvent{Type: endSection}); err != nil {

@@ -14,7 +14,7 @@ func TestUnmarshalZpl(t *testing.T) {
 #
 context
     iothreads = 1
-    verbose = 1      #   Ask for a trace
+    verbose = 1
 
 main
     type = zmq_queue
@@ -27,35 +27,45 @@ main
     backend
         bind = tcp://eth0:5556
         bind = inproc://device`
-	conf := NewSection()
+	conf := make(map[string]interface{})
 	err := Unmarshal([]byte(raw), conf)
 	if err != nil {
 		t.Fatalf("failed to unmarshal: %s", err)
 	}
-	if conf == nil {
-		t.Fatalf("unmarshal returned two nils.")
-	}
-	context, ok := conf.Sections["context"]
+	tmp, ok := conf["context"]
 	if !ok {
 		t.Fatalf("context not found.")
 	}
-	iothreads, ok := context.Properties["iothreads"]
+	context := tmp.(map[string]interface{})
+	tmp, ok = context["iothreads"]
 	if !ok {
 		t.Fatalf("iothreads not found.")
 	}
+	iothreads := tmp.([]interface{})
 	if len(iothreads) != 1 {
 		t.Fatalf("len(iothreads) = %d", len(iothreads))
 	}
 	if iothreads[0].(string) != "1" {
 		t.Fatalf("context/iothreads[0] = %v", iothreads[0])
 	}
-	if context.Properties["verbose"][0].(string) != "1" {
-		t.Fatalf("context/verbose[0] = %v", context.Properties["verbose"][0])
+	tmp, ok = context["verbose"]
+	verbose := tmp.([]interface{})
+	if verbose[0].(string) != "1" {
+		t.Fatalf("context/verbose[0] = %v", verbose[0])
 	}
-	if conf.Sections["main"].Sections["frontend"].Properties["bind"][0].(string) != "tcp://eth0:5555" {
-		t.Fatalf("main/frontend/bind[0] = %v", conf.Sections["main"].Sections["frontend"].Properties["bind"][0])
+	main := conf["main"].(map[string]interface{})
+	frontend := main["frontend"].(map[string]interface{})
+	option := frontend["option"].(map[string]interface{})
+	subscribe := option["subscribe"].([]interface{})
+	if subscribe[0] != "#2" {
+		t.Fatalf("main/frontend/subscribe[0] = %v (length %d)", subscribe[0], len(subscribe[0].(string)))
 	}
-	if conf.Sections["main"].Sections["backend"].Properties["bind"][1].(string) != "inproc://device" {
-		t.Fatalf("main/backend/bind[1] = %v", conf.Sections["main"].Sections["backend"].Properties["bind"][1])
+	backend := main["backend"].(map[string]interface{})
+	bind := backend["bind"].([]interface{})
+	if bind[0] != "tcp://eth0:5556" {
+		t.Fatalf("main/backend/bind[0] = %v", bind[0])
+	}
+	if bind[1] != "inproc://device" {
+		t.Fatalf("main/backend/bind[1] = %v", bind[0])
 	}
 }
