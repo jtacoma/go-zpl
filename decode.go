@@ -44,10 +44,8 @@ func (b *builder) consume(e *parseEvent) error {
 			return err
 		}
 	case endSection:
-		println("pop")
 		b.refs = b.refs[:len(b.refs)-1]
 	case startSection:
-		println("push", e.Name)
 		ref := b.refs[len(b.refs)-1]
 		if next, err := ref.getSection(e.Name); err != nil {
 			return err
@@ -76,15 +74,12 @@ func (m mapModifier) getSection(name string) (modifier, error) {
 
 func (m mapModifier) addValue(name string, value string) error {
 	if already, ok := m[name]; !ok {
-		println("setting", name, value)
 		m[name] = []interface{}{value}
 	} else {
 		switch already.(type) {
 		case []string:
-			println("appending", name, value)
 			m[name] = append(already.([]string), value)
 		case []interface{}:
-			println("appending", name, value)
 			m[name] = append(already.([]interface{}), value)
 		default:
 			return fmt.Errorf("unsupported destination property value type: %T", already)
@@ -136,7 +131,6 @@ func (m refModifier) getSection(name string) (modifier, error) {
 			} else if ptr.IsNil() {
 				ptr.Set(reflect.New(field.Type().Elem()))
 			}
-			println("D mapped", ptr.Elem().Type().Name())
 			return &refModifier{E: ptr.Elem(), T: ptr.Elem().Type()}, nil
 		case reflect.Map:
 			return nil, fmt.Errorf("map of maps is not yet supported.")
@@ -149,7 +143,6 @@ func (m refModifier) getSection(name string) (modifier, error) {
 		}
 		return &refModifier{E: field.Elem(), T: field.Elem().Type()}, nil
 	}
-	println("D section", name, "->", m.T.Field(fi).Name)
 	return &refModifier{E: field, T: field.Type()}, nil
 }
 
@@ -165,7 +158,6 @@ func (m refModifier) addValue(name string, value string) error {
 		return fmt.Errorf("unknown name: %v", name)
 	}
 	field := m.E.Field(fi)
-	println("D value", name, "->", m.T.Field(fi).Name)
 	switch field.Type().Kind() {
 	case reflect.Int, reflect.Int16, reflect.Int32, reflect.Int64:
 		if parsed, err := strconv.ParseInt(value, 10, 64); err != nil {
