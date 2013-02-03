@@ -166,13 +166,13 @@ func (m refModifier) addValue(name string, value string) error {
 			field.SetBool(parsed)
 		}
 	case reflect.Float32, reflect.Float64:
-		if parsed, err := strconv.ParseFloat(value, 64); err != nil {
+		if parsed, err := strconv.ParseFloat(value, field.Type().Bits()); err != nil {
 			return fmt.Errorf("could not parse float %v", value)
 		} else {
 			field.SetFloat(parsed)
 		}
 	case reflect.Int, reflect.Int16, reflect.Int32, reflect.Int64:
-		if parsed, err := strconv.ParseInt(value, 10, 64); err != nil {
+		if parsed, err := strconv.ParseInt(value, 10, field.Type().Bits()); err != nil {
 			return fmt.Errorf("could not parse int %v", value)
 		} else {
 			field.SetInt(parsed)
