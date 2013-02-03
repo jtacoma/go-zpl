@@ -2,16 +2,35 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
+// The gozpl package provides methods for consuming and producing ZPL
+// (http://rfc.zeromq.org/spec:4).
+//
+// Given type definitions 
+//
+//  type Config struct {
+//      Threads int     `threads`
+//      Format  *Format `format`
+//  }
+//  type Format struct {
+//      Indent string `zpl:"indent"`
+//      Base   int    `base`
+//  }
+//
+// You can unmarshal like so:
+//
+//  var config Config
+//  zpl.Unmarshal([]byte(`
+//  threads = 2
+//  format
+//      indent = "    "
+//      base = 10`), &config)
+//
 package gozpl
 
 import (
 	"bytes"
 	"fmt"
 	"regexp"
-)
-
-var (
-	NotFound = fmt.Errorf("not found.")
 )
 
 var (
@@ -46,6 +65,25 @@ type sink interface {
 	consume(*parseEvent) error
 }
 
+// Unmarshal parses the ZPL-encoded data and stores the result in the value
+// pointed to by v.
+//
+// Unmarshal allocates maps, slices, and pointers as necessary while following
+// these rules:
+//
+// To unmarshal ZPL into a pointer, Unmarshal unmarshals the ZPL into the value
+// pointed at by the pointer.  If the pointer is nil, Unmarshal allocates a new
+// value for it to point to.
+//
+// To unmarshal ZPL into an interface value, Unmarshal unmarshals the ZPL into
+// the concrete value contained in the interface value.  If the interface value
+// is nil, that is, has no concrete value stored in it, Unmarshal stores a
+// map[string]interface{} in the interface value.
+//
+// If a ZPL value is not appropriate for a given target type, or if a ZPL number
+// overflows the target type, Unmarshal fails and returns the error immediately
+// without returning any partially decoded data.
+//
 func Unmarshal(src []byte, dst interface{}) error {
 	var builder sink
 	switch dst.(type) {

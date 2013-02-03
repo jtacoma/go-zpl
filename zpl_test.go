@@ -9,7 +9,7 @@ import (
 )
 
 var (
-	raw = `
+	raw = []byte(`
 #   Notice that indentation is always 4 spaces, there are no tabs.
 #
 version = 0.1
@@ -28,12 +28,18 @@ main
         bind = tcp://eth0:5555
     backend
         bind = tcp://eth0:5556
-        bind = inproc://device`
+        bind = inproc://device`)
+	bad0 = []byte(`
+# This is an example of an invalid ZPL document.
+invalid line with spaces`)
+	bad1 = []byte(`
+# This is an example of an invalid ZPL document.
+    key = overly indented value`)
 )
 
 func TestUnmarshal_Map(t *testing.T) {
 	conf := make(map[string]interface{})
-	err := Unmarshal([]byte(raw), conf)
+	err := Unmarshal(raw, conf)
 	if err != nil {
 		t.Fatalf("failed to unmarshal: %s", err)
 	}
@@ -105,7 +111,7 @@ type ZdcfOptions struct {
 
 func TestUnmarshal_Reflect(t *testing.T) {
 	var conf ZdcfRoot
-	err := Unmarshal([]byte(raw), &conf)
+	err := Unmarshal(raw, &conf)
 	if err != nil {
 		t.Fatalf("failed to unmarshal: %s", err)
 	}
@@ -127,5 +133,17 @@ func TestUnmarshal_Reflect(t *testing.T) {
 	}
 	if conf.Devices["main"].Sockets["backend"].Bind[1] != "inproc://device" {
 		t.Fatalf("main/backend/bind[1] = %v", conf.Devices["main"].Sockets["backend"].Bind[1])
+	}
+}
+
+func TestUnmarshal_Bad(t *testing.T) {
+	var conf ZdcfRoot
+	err := Unmarshal(bad0, &conf)
+	if err == nil {
+		t.Fatalf("expected error unmarshalling bad0, got none.")
+	}
+	err = Unmarshal(bad1, &conf)
+	if err == nil {
+		t.Fatalf("expected error unmarshalling bad1, got none.")
 	}
 }
