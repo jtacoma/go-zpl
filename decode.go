@@ -89,67 +89,89 @@ func (m mapModifier) addValue(name string, value string) error {
 }
 
 type refModifier struct {
-	E reflect.Value
-	T reflect.Type
+	reflect.Value
 }
 
-func newRefModifier(v interface{}) *refModifier {
-	ref := &refModifier{
-		E: reflect.ValueOf(v).Elem(),
-	}
-	ref.T = ref.E.Type()
-	return ref
+func newRefModifier(v interface{}) refModifier {
+	return refModifier{reflect.ValueOf(v).Elem()}
 }
 
-func (m refModifier) getSection(name string) (modifier, error) {
-	var fi = -1
-	for i := 0; i < m.E.NumField(); i++ {
-		tag := m.T.Field(i).Tag
-		if string(tag) == name || tag.Get("zpl") == name {
-			fi = i
-		} else if (string(tag) == "*" || tag.Get("zpl") == "*") && fi < 0 {
-			fi = i
-		}
-	}
-	if fi == -1 {
-		return nil, fmt.Errorf("unknown name: %v", name)
-	}
-	field := m.E.Field(fi)
-	if field.Type().Kind() == reflect.Map {
-		if field.Type().Key().Kind() != reflect.String {
+func (m refModifier) getSection(name string) (section modifier, err error) {
+	if m.Type().Kind() == reflect.Map {
+		if m.Type().Key().Kind() != reflect.String {
 			return nil, fmt.Errorf("map key type must be string")
 		}
-		switch field.Type().Elem().Kind() {
+		if m.IsNil() {
+			m.Set(reflect.MakeMap(m.Type()))
+		}
+		switch m.Type().Elem().Kind() {
 		case reflect.Ptr:
-			if field.IsNil() {
-				field.Set(reflect.MakeMap(field.Type()))
-			}
-			ptr := field.MapIndex(reflect.ValueOf(name))
+			ptr := m.MapIndex(reflect.ValueOf(name))
 			if !ptr.IsValid() {
-				ptr = reflect.New(field.Type().Elem().Elem())
-				field.SetMapIndex(reflect.ValueOf(name), ptr)
+				ptr = reflect.New(m.Type().Elem().Elem())
+				m.SetMapIndex(reflect.ValueOf(name), ptr)
 			} else if ptr.IsNil() {
-				ptr.Set(reflect.New(field.Type().Elem()))
+				ptr.Set(reflect.New(m.Type().Elem()))
 			}
-			return &refModifier{E: ptr.Elem(), T: ptr.Elem().Type()}, nil
+			section = refModifier{ptr.Elem()}
 		case reflect.Map:
 			return nil, fmt.Errorf("map of maps is not yet supported.")
 		default:
-			return nil, fmt.Errorf("map of %v is not yet supported.", field.Type().Elem())
+			return nil, fmt.Errorf("map of %v is not yet supported.", m.Type().Elem())
 		}
-	} else if field.Type().Kind() == reflect.Ptr {
-		if field.IsNil() {
-			field.Set(reflect.New(field.Type().Elem()))
+	} else if m.Type().Kind() == reflect.Struct {
+		var fi = -1
+		var squash = false
+		for i := 0; i < m.NumField(); i++ {
+			tag := m.Type().Field(i).Tag
+			if string(tag) == name || tag.Get("zpl") == name {
+				fi = i
+			} else if (string(tag) == "*" || tag.Get("zpl") == "*") && fi < 0 {
+				fi = i
+				squash = true
+			}
 		}
-		return &refModifier{E: field.Elem(), T: field.Elem().Type()}, nil
+		if fi == -1 {
+			return nil, fmt.Errorf("unknown name: %v", name)
+		}
+		field := m.Field(fi)
+		if field.Type().Kind() == reflect.Map {
+			if field.Type().Key().Kind() != reflect.String {
+				return nil, fmt.Errorf("map key type must be string")
+			}
+			if field.IsNil() {
+				field.Set(reflect.MakeMap(field.Type()))
+			}
+			if !squash {
+				section = refModifier{field}
+			} else {
+				helper := refModifier{field}
+				section, err = helper.getSection(name)
+				if err != nil {
+					return nil, err
+				}
+			}
+		} else if field.Type().Kind() == reflect.Ptr {
+			if field.IsNil() {
+				field.Set(reflect.New(field.Type().Elem()))
+			}
+			section = refModifier{field.Elem()}
+		} else {
+			return nil, fmt.Errorf("cannot unmarshal into %v", field.Type())
+		}
+	} else {
+		return nil, fmt.Errorf("cannot unmarshal into %v", m.Type())
 	}
-	return &refModifier{E: field, T: field.Type()}, nil
+	if section == nil {
+		return nil, fmt.Errorf("unknown error.")
+	}
+	return section, nil
 }
 
 func (m refModifier) addValue(name string, value string) error {
 	var fi = -1
-	for i := 0; i < m.E.NumField(); i++ {
-		tag := m.T.Field(i).Tag
+	for i := 0; i < m.NumField(); i++ {
+		tag := m.Type().Field(i).Tag
 		if string(tag) == name || tag.Get("zpl") == name {
 			fi = i
 		}
@@ -157,7 +179,7 @@ func (m refModifier) addValue(name string, value string) error {
 	if fi == -1 {
 		return fmt.Errorf("unknown name: %v", name)
 	}
-	field := m.E.Field(fi)
+	field := m.Field(fi)
 	switch field.Type().Kind() {
 	case reflect.Bool:
 		if parsed, err := strconv.ParseBool(value); err != nil {

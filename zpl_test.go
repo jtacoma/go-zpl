@@ -9,7 +9,7 @@ import (
 )
 
 var (
-	raw = []byte(`
+	raw0 = []byte(`
 #   Notice that indentation is always 4 spaces, there are no tabs.
 #
 version = 0.1
@@ -29,6 +29,16 @@ main
     backend
         bind = tcp://eth0:5556
         bind = inproc://device`)
+	raw1 = []byte(`
+# The structure here is different because there are 
+version = 1
+words
+    cat
+        kind = mammal
+        alias = feline
+    dog
+        kind = mammal
+        alias = canine`)
 	bad0 = []byte(`
 # This is an example of an invalid ZPL document.
 invalid line with spaces`)
@@ -39,7 +49,7 @@ invalid line with spaces`)
 
 func TestUnmarshal_Map(t *testing.T) {
 	conf := make(map[string]interface{})
-	err := Unmarshal(raw, conf)
+	err := Unmarshal(raw0, conf)
 	if err != nil {
 		t.Fatalf("failed to unmarshal: %s", err)
 	}
@@ -82,7 +92,7 @@ func TestUnmarshal_Map(t *testing.T) {
 }
 
 type ZdcfRoot struct {
-	Context ZdcfContext            `context`
+	Context *ZdcfContext           `context`
 	Devices map[string]*ZdcfDevice `*`
 	Version float32                `version`
 }
@@ -109,9 +119,19 @@ type ZdcfOptions struct {
 	Subscribe []string `zpl:"subscribe"`
 }
 
+type Dictionary struct {
+	Version float32          `version`
+	Words   map[string]*Word `words`
+}
+
+type Word struct {
+	Kind    string   `kind`
+	Aliases []string `alias`
+}
+
 func TestUnmarshal_Reflect(t *testing.T) {
 	var conf ZdcfRoot
-	err := Unmarshal(raw, &conf)
+	err := Unmarshal(raw0, &conf)
 	if err != nil {
 		t.Fatalf("failed to unmarshal: %s", err)
 	}
@@ -133,6 +153,17 @@ func TestUnmarshal_Reflect(t *testing.T) {
 	}
 	if conf.Devices["main"].Sockets["backend"].Bind[1] != "inproc://device" {
 		t.Fatalf("main/backend/bind[1] = %v", conf.Devices["main"].Sockets["backend"].Bind[1])
+	}
+	var dict Dictionary
+	err = Unmarshal(raw1, &dict)
+	if err != nil {
+		t.Fatalf("failed to unmarshal: %s", err)
+	}
+	if _, ok := dict.Words["words"]; ok {
+		t.Fatalf("words/words exists")
+	}
+	if dict.Words["cat"].Aliases[0] != "feline" {
+		t.Fatalf("words/cat/alias[0] = %v", dict.Words["cat"].Aliases[0])
 	}
 }
 
