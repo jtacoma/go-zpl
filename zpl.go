@@ -15,9 +15,8 @@ var (
 )
 
 var (
-	reskip       = regexp.MustCompile(`^\s*(#.*)?$`)
-	reskipinline = regexp.MustCompile(`\s*(#.*)?$`)
-	rekeyvalue   = regexp.MustCompile(
+	reskip     = regexp.MustCompile(`^\s*(#.*)?$`)
+	rekeyvalue = regexp.MustCompile(
 		`^(?P<indent>(    )*)(?P<key>[a-zA-Z0-9][a-zA-Z0-9/]*)(\s*(?P<hasvalue>=)\s*(?P<value>[^ ].*))?$`)
 	rekeyquoted = regexp.MustCompile(
 		`^(?P<indent>(    )*)(?P<key>[a-zA-Z0-9][a-zA-Z0-9/]*)(\s*(?P<hasvalue>=)\s*"(?P<value>[^ ].*)")?$`)
@@ -53,15 +52,14 @@ func Unmarshal(src []byte, dst interface{}) error {
 	case sink:
 		builder = dst.(sink)
 	case interface{}:
-		builder = &reflectionBuilder{pointers: []interface{}{dst}}
+		builder = newBuilder(dst)
 	default:
 		return fmt.Errorf("cannot unmarshal ZPL into %T", dst)
 	}
 	prevDepth := 0
 	for lineno, line := range splitLines(src) {
-		//if inline := bytes.IndexByte(line, '#'); inline >= 0 { line = line[:inline] }
-		//if skip:=reskipinline.Find(line);skip!=nil{ line=line[:skip[0]] }
-		line = bytes.TrimRight(line, " \t\n\r") // TODO: rewhitespace
+		// TODO: handle whitespace more correctly
+		line = bytes.TrimRight(line, " \t\n\r")
 		if len(line) == 0 || reskip.Match(line) {
 			continue
 		}

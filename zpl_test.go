@@ -8,8 +8,8 @@ import (
 	"testing"
 )
 
-func TestUnmarshalZpl(t *testing.T) {
-	raw := `
+var (
+	raw = `
 #   Notice that indentation is always 4 spaces, there are no tabs.
 #
 context
@@ -27,6 +27,9 @@ main
     backend
         bind = tcp://eth0:5556
         bind = inproc://device`
+)
+
+func TestUnmarshal_Map(t *testing.T) {
 	conf := make(map[string]interface{})
 	err := Unmarshal([]byte(raw), conf)
 	if err != nil {
@@ -67,5 +70,56 @@ main
 	}
 	if bind[1] != "inproc://device" {
 		t.Fatalf("main/backend/bind[1] = %v", bind[0])
+	}
+}
+
+type ZdcfRoot struct {
+	Context ZdcfContext            `context`
+	Devices map[string]*ZdcfDevice `*`
+}
+
+type ZdcfContext struct {
+	IoThreads int  `iothreads`
+	Verbose   bool `verbose`
+}
+
+type ZdcfDevice struct {
+	Type    string                 `type`
+	Sockets map[string]*ZdcfSocket `*`
+}
+
+type ZdcfSocket struct {
+	Options *ZdcfOptions `option`
+	Bind    []string     `bind`
+	Connect []string     `connect`
+}
+
+type ZdcfOptions struct {
+	Hwm       int      `zpl:"hwm"`
+	Swap      int64    `swap`
+	Subscribe []string `zpl:"subscribe"`
+}
+
+func TestUnmarshal_Reflect(t *testing.T) {
+	var conf ZdcfRoot
+	err := Unmarshal([]byte(raw), &conf)
+	if err != nil {
+		t.Fatalf("failed to unmarshal: %s", err)
+	}
+	if conf.Context.IoThreads != 1 {
+		t.Fatalf("context/iothreads = %v", conf.Context.IoThreads)
+	}
+	if conf.Context.Verbose != true {
+		t.Fatalf("context/verbose = %v", conf.Context.Verbose)
+	}
+	if conf.Devices["main"].Sockets["frontend"].Options.Subscribe[0] != "#2" {
+		t.Fatalf("main/frontend/subscribe[0] = %v",
+			conf.Devices["main"].Sockets["frontend"].Options.Subscribe[0])
+	}
+	if conf.Devices["main"].Sockets["backend"].Bind[0] != "tcp://eth0:5556" {
+		t.Fatalf("main/backend/bind[0] = %v", conf.Devices["main"].Sockets["backend"].Bind[0])
+	}
+	if conf.Devices["main"].Sockets["backend"].Bind[1] != "inproc://device" {
+		t.Fatalf("main/backend/bind[1] = %v", conf.Devices["main"].Sockets["backend"].Bind[1])
 	}
 }
