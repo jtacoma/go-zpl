@@ -12,6 +12,8 @@ var (
 	raw = `
 #   Notice that indentation is always 4 spaces, there are no tabs.
 #
+version = 0.1
+
 context
     iothreads = 1
     verbose = 1
@@ -76,6 +78,7 @@ func TestUnmarshal_Map(t *testing.T) {
 type ZdcfRoot struct {
 	Context ZdcfContext            `context`
 	Devices map[string]*ZdcfDevice `*`
+	Version float32                `version`
 }
 
 type ZdcfContext struct {
@@ -105,6 +108,9 @@ func TestUnmarshal_Reflect(t *testing.T) {
 	err := Unmarshal([]byte(raw), &conf)
 	if err != nil {
 		t.Fatalf("failed to unmarshal: %s", err)
+	}
+	if conf.Version != 0.1 {
+		t.Fatalf("version = %v", conf.Version)
 	}
 	if conf.Context.IoThreads != 1 {
 		t.Fatalf("context/iothreads = %v", conf.Context.IoThreads)

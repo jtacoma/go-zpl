@@ -159,17 +159,23 @@ func (m refModifier) addValue(name string, value string) error {
 	}
 	field := m.E.Field(fi)
 	switch field.Type().Kind() {
-	case reflect.Int, reflect.Int16, reflect.Int32, reflect.Int64:
-		if parsed, err := strconv.ParseInt(value, 10, 64); err != nil {
-			return fmt.Errorf("could not parse int %v", value)
-		} else {
-			field.SetInt(parsed)
-		}
 	case reflect.Bool:
 		if parsed, err := strconv.ParseBool(value); err != nil {
 			return fmt.Errorf("could not parse bool %v", value)
 		} else {
 			field.SetBool(parsed)
+		}
+	case reflect.Float32, reflect.Float64:
+		if parsed, err := strconv.ParseFloat(value, 64); err != nil {
+			return fmt.Errorf("could not parse float %v", value)
+		} else {
+			field.SetFloat(parsed)
+		}
+	case reflect.Int, reflect.Int16, reflect.Int32, reflect.Int64:
+		if parsed, err := strconv.ParseInt(value, 10, 64); err != nil {
+			return fmt.Errorf("could not parse int %v", value)
+		} else {
+			field.SetInt(parsed)
 		}
 	case reflect.String:
 		field.SetString(value)
