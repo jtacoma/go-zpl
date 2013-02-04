@@ -28,7 +28,12 @@ main
         bind = tcp://eth0:5555
     backend
         bind = tcp://eth0:5556
-        bind = inproc://device`)
+        bind = inproc://device
+
+auxiliary
+    type = foo
+    socket0
+    socket1`)
 	raw1 = []byte(`
 # The structure here is different because there are 
 version = 1
@@ -108,6 +113,7 @@ type ZdcfDevice struct {
 }
 
 type ZdcfSocket struct {
+	Type    string       `type`
 	Options *ZdcfOptions `option`
 	Bind    []string     `bind`
 	Connect []string     `connect`

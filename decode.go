@@ -132,7 +132,7 @@ func (m refModifier) getSection(name string) (section modifier, err error) {
 			}
 		}
 		if fi == -1 {
-			return nil, fmt.Errorf("unknown name: %v", name)
+			return nil, fmt.Errorf("%v has no field tagged %v", m.Type(), name)
 		}
 		field := m.Field(fi)
 		if field.Type().Kind() == reflect.Map {
@@ -177,7 +177,7 @@ func (m refModifier) addValue(name string, value string) error {
 		}
 	}
 	if fi == -1 {
-		return fmt.Errorf("unknown name: %v", name)
+		return fmt.Errorf("%v has no field tagged %v", m.Type(), name)
 	}
 	field := m.Field(fi)
 	switch field.Type().Kind() {

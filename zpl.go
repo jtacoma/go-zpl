@@ -127,12 +127,12 @@ func Unmarshal(src []byte, dst interface{}) error {
 		}
 		if match != nil {
 			depth := len(match[1]) / 4
-			if depth < prevDepth {
+			for depth < prevDepth {
 				if err := builder.consume(&parseEvent{Type: endSection}); err != nil {
 					return err
 				}
+				prevDepth--
 			}
-			prevDepth = depth
 			key := string(match[3])
 			if len(match[5]) > 0 {
 				value := string(match[6])
@@ -143,6 +143,7 @@ func Unmarshal(src []byte, dst interface{}) error {
 				if err := builder.consume(&parseEvent{Type: startSection, Name: key}); err != nil {
 					return err
 				}
+				prevDepth++
 			}
 		} else {
 			return fmt.Errorf("line %d: invalid ZPL: %v", lineno, string(line))
