@@ -49,7 +49,6 @@ package gozpl
 
 import (
 	"bytes"
-	"fmt"
 	"reflect"
 	"regexp"
 )
@@ -124,7 +123,14 @@ func (e *SyntaxError) Error() string { return e.msg }
 // Passing cyclic structures to Marshal will result in an infinite recursion.
 //
 func Marshal(v interface{}) ([]byte, error) {
-	return nil, fmt.Errorf("zpl.Marshal() is not yet implemented.")
+	var (
+		w   writer
+		err = marshal(&w, reflect.ValueOf(v))
+	)
+	if err != nil {
+		return nil, err
+	}
+	return []byte(w.s), nil
 }
 
 // Unmarshal parses the ZPL-encoded data and stores the result in the value
