@@ -178,6 +178,16 @@ func TestUnmarshal_Bad(t *testing.T) {
 	err := Unmarshal(bad0, &conf)
 	if err == nil {
 		t.Fatalf("expected error unmarshalling bad0, got none.")
+	} else {
+		switch err.(type) {
+		case *SyntaxError:
+			synerr := err.(*SyntaxError)
+			if synerr.Line != 3 {
+				t.Fatalf("expected syntax error on line 3, got line %d.", synerr.Line)
+			}
+		default:
+			t.Fatalf("expected syntax error, got %T.", err)
+		}
 	}
 	err = Unmarshal(bad1, &conf)
 	if err == nil {

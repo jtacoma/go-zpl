@@ -74,8 +74,8 @@ func (e *InvalidUnmarshalError) Error() string {
 // A SyntaxError is a description of a ZPL syntax error.
 //
 type SyntaxError struct {
-	msg          string // description of error
-	Line, Column int64  // error occurred on Column of Line
+	msg  string // description of error
+	Line int64  // error occurred line number Line
 }
 
 func (e *SyntaxError) Error() string { return e.msg }
@@ -186,7 +186,10 @@ func Unmarshal(src []byte, dst interface{}) error {
 				prevDepth++
 			}
 		} else {
-			return fmt.Errorf("line %d: invalid ZPL: %v", lineno, string(line))
+			return &SyntaxError{
+				Line: int64(lineno + 1),
+				msg:  "this line is neither a comment, a section header, nor a key = value setting.",
+			}
 		}
 	}
 	return nil
@@ -219,7 +222,21 @@ var (
 )
 
 func splitLines(blob []byte) [][]byte {
-	return bytes.FieldsFunc(blob, func(r rune) bool {
-		return r == 10 || r == 13
-	})
+	// Splitting precisely on actual line breaks is not so straightforward...
+	var lines [][]byte
+	var eol int
+	for i := 0; i < len(blob); eol = bytes.IndexAny(blob[i:], "\x0A\x0D") {
+		if eol == -1 {
+			lines = append(lines, blob[i:])
+			break
+		} else {
+			lines = append(lines, blob[i:i+eol])
+			if blob[i+eol] == 0x0D && eol+1 < len(blob) && blob[i+eol+1] == 0x0A {
+				i += eol + 2
+			} else {
+				i += eol + 1
+			}
+		}
+	}
+	return lines
 }

@@ -160,7 +160,7 @@ func (m refModifier) getSection(name string) (section modifier, err error) {
 			return nil, fmt.Errorf("cannot unmarshal into %v", field.Type())
 		}
 	} else {
-		return nil, fmt.Errorf("cannot unmarshal into %v", m.Type())
+		return nil, &InvalidUnmarshalError{Type: m.Type()}
 	}
 	if section == nil {
 		return nil, fmt.Errorf("unknown error.")
