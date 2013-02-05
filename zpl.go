@@ -3,7 +3,8 @@
 // license that can be found in the LICENSE file.
 
 // The gozpl package provides methods for consuming and producing data in the
-// ZeroMQ Property Language (ZPL) encoding.
+// ZeroMQ Property Language (ZPL) encoding defined in
+// http://rfc.zeromq.org/spec:4.
 //
 package gozpl
 
