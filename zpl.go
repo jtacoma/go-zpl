@@ -5,46 +5,6 @@
 // The gozpl package provides methods for consuming and producing data in the
 // ZeroMQ Property Language (ZPL) encoding.
 //
-// Example code in this package will use the name "zpl":
-// 
-//  import zpl "github.com/jtacoma/gozpl"
-//  
-// Data presented in the ZeroMQ Property Language, documented fully at
-// http://rfc.zeromq.org/spec:4, might look like this:
-//
-//  threads = 2
-//  zpl
-//      alias = "ZPL"
-//      alias = "ZeroMQ Property Language"
-//      indent = "    "
-//      base = 10
-//  json
-//      alias = "JSON"
-//      indent = "  "
-//
-// To load this with gozpl, use the same conventions used in the
-// "encodings/json" and "encodings/xml" packages.  First, tag some structs:
-//
-//  type Config struct {
-//      Threads int                `threads`
-//      Format  map[string]*Format `zpl:"*"`
-//  }
-//  type Format struct {
-//      Aliases []string `alias`
-//      Indent  string   `indent`
-//      Base    int      `base`
-//  }
-//
-// Then use zpl.Unmarshal to load a Config from a []byte:
-//
-//  func main() {
-//      var config Config
-//      if err := zpl.Unmarshal(bytes_from_zpl_file, &config); err != nil {
-//          panic (err)
-//      }
-//      // ...
-//  }
-//
 package gozpl
 
 import (
