@@ -10,6 +10,7 @@ package gozpl
 
 import (
 	"bytes"
+	"fmt"
 	"reflect"
 	"regexp"
 )
@@ -38,7 +39,9 @@ type SyntaxError struct {
 	Line int64  // error occurred line number Line
 }
 
-func (e *SyntaxError) Error() string { return e.msg }
+func (e *SyntaxError) Error() string {
+	return fmt.Sprintf("%d:%s", e.Line, e.msg)
+}
 
 // Marshal returns the ZPL encoding of v.
 //
