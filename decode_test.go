@@ -34,9 +34,8 @@ auxiliary
     type = foo
     socket0
     socket1`)
-	raw1 = []byte(`
-# The structure here is different because there are 
-version = 1
+	raw1 = []byte(`version = 1
+# The first line is not a comment.  What happens?
 words
     cat
         kind = mammal

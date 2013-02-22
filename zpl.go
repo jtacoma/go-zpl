@@ -195,7 +195,8 @@ func splitLines(blob []byte) [][]byte {
 	// Splitting precisely on actual line breaks is not so straightforward...
 	var lines [][]byte
 	var eol int
-	for i := 0; i < len(blob); eol = bytes.IndexAny(blob[i:], "\x0A\x0D") {
+	for i := 0; i < len(blob); {
+		eol = bytes.IndexAny(blob[i:], "\x0A\x0D")
 		if eol == -1 {
 			lines = append(lines, blob[i:])
 			break
