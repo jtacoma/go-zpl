@@ -1,4 +1,4 @@
-# gozpl
+# go-zpl
 
 This Go (golang) package provides methods for consuming and producing ZPL
 (ZeroMQ Property Language, http://rfc.zeromq.org/spec:4).  It implements a
@@ -6,7 +6,7 @@ subset of the functionality found in the "encodings" packages.
 
 ## Documentation
 
-See http://godoc.org/github.com/jtacoma/gozpl
+See http://godoc.org/github.com/jtacoma/go-zpl
 
 ## License
 
