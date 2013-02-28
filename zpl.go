@@ -87,13 +87,11 @@ func (e *SyntaxError) Error() string {
 //
 func Marshal(v interface{}) ([]byte, error) {
 	var (
-		w   writer
-		err = marshal(&w, reflect.ValueOf(v))
+		buf = &bytes.Buffer{}
+		e   = NewEncoder(buf)
+		err = e.Encode(v)
 	)
-	if err != nil {
-		return nil, err
-	}
-	return []byte(w.s), nil
+	return buf.Bytes(), err
 }
 
 // Unmarshal parses the ZPL-encoded data and stores the result in the value

@@ -6,80 +6,33 @@ package gozpl
 
 import (
 	"fmt"
+	"io"
 	"reflect"
 	"strconv"
 	"strings"
 )
 
-type writer struct {
-	s      string
+type Encoder struct {
+	w      io.Writer
 	indent string
+	br     string
 }
 
-func (w *writer) addValue(name string, value string) {
-	w.s = fmt.Sprintf("%s%s%s = %s\n", w.s, w.indent, name, value)
-}
-
-func (w *writer) startSection(name string) {
-	w.s = fmt.Sprintf("%s%s%s\n", w.s, w.indent, name)
-	w.indent = fmt.Sprintf("%s    ", w.indent)
-}
-
-func (w *writer) endSection() error {
-	if len(w.indent) < 4 {
-		return fmt.Errorf("zpl: unexpected end of section.")
+func NewEncoder(w io.Writer) *Encoder {
+	return &Encoder{
+		w:  w,
+		br: "\n",
 	}
-	w.indent = w.indent[:len(w.indent)-4]
-	return nil
 }
 
-func marshalProperty(w *writer, name string, value reflect.Value) error {
-	switch value.Type().Kind() {
-	case reflect.Map:
-		if name != "*" {
-			w.startSection(name)
-		}
-		for _, key := range value.MapKeys() {
-			v := value.MapIndex(key)
-			if err := marshalProperty(w, key.Interface().(string), v); err != nil {
-				return err
-			}
-		}
-		if name != "*" {
-			if err := w.endSection(); err != nil {
-				return err
-			}
-		}
-	case reflect.Struct:
-		w.startSection(name)
-		marshal(w, value)
-		if err := w.endSection(); err != nil {
-			return err
-		}
-	case reflect.Int16, reflect.Int32, reflect.Int64, reflect.Int:
-		w.addValue(name, strconv.FormatInt(value.Int(), 10))
-	case reflect.Float32, reflect.Float64:
-		w.addValue(name, strconv.FormatFloat(value.Float(), 'f', -1, value.Type().Bits()))
-	case reflect.Bool:
-		if value.Bool() {
-			w.addValue(name, "1")
-		} else {
-			w.addValue(name, "0")
-		}
-	case reflect.String:
-		w.addValue(name, value.String())
-	case reflect.Ptr, reflect.Interface:
-		marshalProperty(w, name, value.Elem())
-	default:
-		// Silently fail to marshal what we don't know how to marshal.
-	}
-	return nil
+func (w *Encoder) Encode(v interface{}) error {
+	return w.encode(reflect.ValueOf(v))
 }
 
-func marshal(w *writer, value reflect.Value) error {
+func (w *Encoder) encode(value reflect.Value) error {
 	switch value.Type().Kind() {
 	case reflect.Ptr:
-		return marshal(w, value.Elem())
+		return w.encode(value.Elem())
 	case reflect.Map:
 		if value.Type().Key().Kind() == reflect.String {
 			for _, key := range value.MapKeys() {
@@ -104,6 +57,70 @@ func marshal(w *writer, value reflect.Value) error {
 				}
 			}
 		}
+	}
+	return nil
+}
+
+func (e *Encoder) addValue(name string, value string) error {
+	_, err := e.w.Write([]byte(e.indent + name + " = " + value + e.br))
+	return err
+}
+
+func (e *Encoder) startSection(name string) error {
+	if _, err := e.w.Write([]byte(e.indent + name + e.br)); err != nil {
+		return err
+	}
+	e.indent += "    "
+	return nil
+}
+
+func (e *Encoder) endSection() error {
+	if len(e.indent) < 4 {
+		return fmt.Errorf("zpl: unexpected end of section.")
+	}
+	e.indent = e.indent[:len(e.indent)-4]
+	return nil
+}
+
+func marshalProperty(e *Encoder, name string, value reflect.Value) error {
+	switch value.Type().Kind() {
+	case reflect.Map:
+		if name != "*" {
+			e.startSection(name)
+		}
+		for _, key := range value.MapKeys() {
+			v := value.MapIndex(key)
+			if err := marshalProperty(e, key.Interface().(string), v); err != nil {
+				return err
+			}
+		}
+		if name != "*" {
+			if err := e.endSection(); err != nil {
+				return err
+			}
+		}
+	case reflect.Struct:
+		e.startSection(name)
+		e.encode(value)
+		if err := e.endSection(); err != nil {
+			return err
+		}
+	case reflect.Int16, reflect.Int32, reflect.Int64, reflect.Int:
+		e.addValue(name, strconv.FormatInt(value.Int(), 10))
+	case reflect.Float32, reflect.Float64:
+		e.addValue(name, strconv.FormatFloat(value.Float(), 'f', -1, value.Type().Bits()))
+	case reflect.Bool:
+		if value.Bool() {
+			e.addValue(name, "1")
+		} else {
+			e.addValue(name, "0")
+		}
+	case reflect.String:
+		e.addValue(name, value.String())
+	case reflect.Ptr, reflect.Interface:
+		marshalProperty(e, name, value.Elem())
+	default:
+		// Silently fail to marshal what we don't know how to marshal.
 	}
 	return nil
 }
