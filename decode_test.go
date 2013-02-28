@@ -119,8 +119,8 @@ type ZdcfSocket struct {
 }
 
 type ZdcfOptions struct {
-	Hwm       int      `zpl:"hwm"`
-	Swap      int64    `swap`
+	Hwm       *int     `zpl:"hwm"`
+	Swap      *int64   `swap`
 	Subscribe []string `zpl:"subscribe"`
 }
 
@@ -148,6 +148,10 @@ func TestUnmarshal_Reflect(t *testing.T) {
 	}
 	if conf.Context.Verbose != true {
 		t.Fatalf("context/verbose = %v", conf.Context.Verbose)
+	}
+	if *conf.Devices["main"].Sockets["frontend"].Options.Hwm != 1000 {
+		t.Fatalf("main/frontend/hwm = %v",
+			*conf.Devices["main"].Sockets["frontend"].Options.Hwm)
 	}
 	if conf.Devices["main"].Sockets["frontend"].Options.Subscribe[0] != "#2" {
 		t.Fatalf("main/frontend/subscribe[0] = %v",

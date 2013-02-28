@@ -310,6 +310,10 @@ func (m refModifier) addValue(name string, value string) error {
 		return fmt.Errorf("%v has no field tagged %v", m.Type(), name)
 	}
 	field := m.Field(fi)
+	return m.addValueToField(field, value)
+}
+
+func (m refModifier) addValueToField(field reflect.Value, value string) error {
 	switch field.Type().Kind() {
 	case reflect.Bool:
 		if parsed, err := strconv.ParseBool(value); err != nil {
@@ -329,6 +333,11 @@ func (m refModifier) addValue(name string, value string) error {
 		} else {
 			field.SetInt(parsed)
 		}
+	case reflect.Ptr:
+		if field.IsNil() {
+			field.Set(reflect.New(field.Type().Elem()))
+		}
+		return m.addValueToField(field.Elem(), value)
 	case reflect.String:
 		field.SetString(value)
 	case reflect.Slice:
