@@ -5,10 +5,134 @@
 package gozpl
 
 import (
+	"bytes"
 	"fmt"
+	"io"
 	"reflect"
 	"strconv"
 )
+
+// A Decoder represents a ZPL parser reading a particular input stream.  The
+// parser assumes that its input is encoded in UTF-8.
+//
+type Decoder struct {
+	r         io.Reader
+	prevDepth int
+	buffer    []byte
+	lineno    int
+	queue     []*parseEvent
+}
+
+// NewDecoder creates a new ZPL parser reading from r.
+//
+func NewDecoder(r io.Reader) *Decoder {
+	return &Decoder{
+		r: r,
+	}
+}
+
+// Decode works like gozpl.Unmarshal, except it reads the decoder stream
+// instead of a byte array.
+//
+func (d *Decoder) Decode(v interface{}) error {
+	var builder sink
+	switch v.(type) {
+	case sink:
+		builder = v.(sink)
+	default:
+		builder = newBuilder(v)
+	}
+	for {
+		e, err := d.next()
+		if err == io.EOF {
+			break
+		} else if err != nil {
+			return err
+		} else if err = builder.consume(e); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (d *Decoder) next() (e *parseEvent, err error) {
+	if len(d.queue) > 0 {
+		e = d.queue[0]
+		d.queue = d.queue[1:]
+		return
+	}
+	var line []byte
+	for {
+		d.lineno += 1
+		for {
+			n := bytes.IndexAny(d.buffer, "\n\r")
+			if n >= 0 {
+				line = d.buffer[:n]
+				if n+1 < len(d.buffer) {
+					switch d.buffer[n] {
+					case '\r':
+						if d.buffer[n+1] == '\n' {
+							n += 1
+						}
+					case '\n':
+						if d.buffer[n+1] == '\r' {
+							n += 1
+						}
+					}
+				}
+				d.buffer = d.buffer[n+1:]
+				break
+			}
+			b := make([]byte, 64)
+			n, err = d.r.Read(b)
+			if err == io.EOF {
+				d.buffer = append(d.buffer, b...)
+				break
+			} else if err != nil {
+				return
+			} else {
+				d.buffer = append(d.buffer, b...)
+			}
+		}
+		if err == io.EOF {
+			break
+		} else if len(line) == 0 || reskip.Match(line) {
+			continue
+		} else {
+			break
+		}
+	}
+	if err == io.EOF && len(line) == 0 {
+		return
+	}
+	match := rekeyquoted.FindSubmatch(line)
+	if match == nil {
+		match = rekeyvalue.FindSubmatch(line)
+	}
+	if match != nil {
+		depth := len(match[1]) / 4
+		for depth < d.prevDepth {
+			d.queue = append(d.queue, &parseEvent{Type: endSection})
+			d.prevDepth--
+		}
+		key := string(match[3])
+		if len(match[5]) > 0 {
+			value := string(match[6])
+			d.queue = append(d.queue, &parseEvent{Type: addValue, Name: key, Value: value})
+		} else {
+			d.queue = append(d.queue, &parseEvent{Type: startSection, Name: key})
+			d.prevDepth++
+		}
+		e = d.queue[0]
+		d.queue = d.queue[1:]
+	} else {
+		err = &SyntaxError{
+			Line: int64(d.lineno),
+			msg:  "is neither a comment, a section header, nor a key = value setting.",
+		}
+	}
+	return
+}
 
 type modifier interface {
 	getSection(name string) (modifier, error)

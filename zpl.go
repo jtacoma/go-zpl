@@ -116,52 +116,9 @@ func Marshal(v interface{}) ([]byte, error) {
 // any remaining data.
 //
 func Unmarshal(src []byte, dst interface{}) error {
-	var builder sink
-	switch dst.(type) {
-	case sink:
-		builder = dst.(sink)
-	default:
-		builder = newBuilder(dst)
-	}
-	prevDepth := 0
-	for lineno, line := range splitLines(src) {
-		// TODO: handle whitespace more correctly
-		line = bytes.TrimRight(line, " \t\n\r")
-		if len(line) == 0 || reskip.Match(line) {
-			continue
-		}
-		match := rekeyquoted.FindSubmatch(line)
-		if match == nil {
-			match = rekeyvalue.FindSubmatch(line)
-		}
-		if match != nil {
-			depth := len(match[1]) / 4
-			for depth < prevDepth {
-				if err := builder.consume(&parseEvent{Type: endSection}); err != nil {
-					return err
-				}
-				prevDepth--
-			}
-			key := string(match[3])
-			if len(match[5]) > 0 {
-				value := string(match[6])
-				if err := builder.consume(&parseEvent{Type: addValue, Name: key, Value: value}); err != nil {
-					return err
-				}
-			} else {
-				if err := builder.consume(&parseEvent{Type: startSection, Name: key}); err != nil {
-					return err
-				}
-				prevDepth++
-			}
-		} else {
-			return &SyntaxError{
-				Line: int64(lineno + 1),
-				msg:  "this line is neither a comment, a section header, nor a key = value setting.",
-			}
-		}
-	}
-	return nil
+	r := bytes.NewReader(src)
+	d := NewDecoder(r)
+	return d.Decode(dst)
 }
 
 type (
@@ -189,24 +146,3 @@ var (
 	rekeyquoted = regexp.MustCompile(
 		`^(?P<indent>(    )*)(?P<key>[a-zA-Z0-9][a-zA-Z0-9/]*)(\s*(?P<hasvalue>=)\s*"(?P<value>[^ ].*)")?$`)
 )
-
-func splitLines(blob []byte) [][]byte {
-	// Splitting precisely on actual line breaks is not so straightforward...
-	var lines [][]byte
-	var eol int
-	for i := 0; i < len(blob); {
-		eol = bytes.IndexAny(blob[i:], "\x0A\x0D")
-		if eol == -1 {
-			lines = append(lines, blob[i:])
-			break
-		} else {
-			lines = append(lines, blob[i:i+eol])
-			if blob[i+eol] == 0x0D && eol+1 < len(blob) && blob[i+eol+1] == 0x0A {
-				i += eol + 2
-			} else {
-				i += eol + 1
-			}
-		}
-	}
-	return lines
-}
