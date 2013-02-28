@@ -53,7 +53,7 @@ func (e *SyntaxError) Error() string {
 // Floating point and integer values encode as base-10 numbers.
 //
 // String values encode as strings.  Invalid character sequences will cause
-// Marshal to return an UnsupportedValueError.
+// Marshal to return an UnsupportedValueError.  Line breaks are invalid.
 //
 // Array and slice values encode as repetitions of the same property.
 //
@@ -64,12 +64,11 @@ func (e *SyntaxError) Error() string {
 //   // Field is ignored by this package.
 //   Field int `zpl:"-"`
 //
-//   // Field appears in ZPL as property "myName".
-//   Field int `zpl:"myName"`
+//   // Field appears in ZPL as property "name".
+//   Field int `zpl:"name"`
 //
 // The key name will be used if it's a non-empty string consisting of only
-// Unicode letters, digits, dollar signs, percent signs, hyphens, underscores
-// and slashes.
+// alphanumeric ([A-Za-z0-9]) characters.
 //
 // Map values encode as ZPL sections unless their tag is "*", in which case they
 // will be collapsed into their parent.  There can be only one "*"-tagged
@@ -113,8 +112,8 @@ func Marshal(v interface{}) ([]byte, error) {
 // map[string]interface{} in the interface value.
 //
 // If a ZPL value is not appropriate for a given target type, or if a ZPL number
-// overflows the target type, Unmarshal fails and returns the error immediately
-// without returning any partially decoded data.
+// overflows the target type, Unmarshal returns the error and does not process
+// any remaining data.
 //
 func Unmarshal(src []byte, dst interface{}) error {
 	var builder sink
