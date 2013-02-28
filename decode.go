@@ -23,7 +23,10 @@ type Decoder struct {
 	queue     []*parseEvent
 }
 
-// NewDecoder creates a new ZPL parser reading from r.
+// NewDecoder creates a new ZPL parser that reads from r.
+//
+// The decoder introduces its own buffering and may read data from r beyond
+// the ZPL values requested.
 //
 func NewDecoder(r io.Reader) *Decoder {
 	return &Decoder{
@@ -31,8 +34,11 @@ func NewDecoder(r io.Reader) *Decoder {
 	}
 }
 
-// Decode works like gozpl.Unmarshal, except it reads the decoder stream
-// instead of a byte array.
+// Decode reads the next ZPL-encoded value from its input and stores it in the
+// value pointed to by v.
+//
+// See the documentation for Unmarshal for details about the conversion of ZPL
+// into a Go value.
 //
 func (d *Decoder) Decode(v interface{}) error {
 	var builder sink

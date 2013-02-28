@@ -12,12 +12,16 @@ import (
 	"strings"
 )
 
+// An Encoder write ZPL to an output stream.
+//
 type Encoder struct {
 	w      io.Writer
 	indent string
 	br     string
 }
 
+// NewEncoder returns a new encoder that writes to w.
+//
 func NewEncoder(w io.Writer) *Encoder {
 	return &Encoder{
 		w:  w,
@@ -25,6 +29,11 @@ func NewEncoder(w io.Writer) *Encoder {
 	}
 }
 
+// Encode writes the ZPL encoding of v to the connection.
+//
+// See the documentation for Marshal for details about the conversion of Go
+// values to ZPL.
+//
 func (w *Encoder) Encode(v interface{}) error {
 	return w.encode(reflect.ValueOf(v))
 }
