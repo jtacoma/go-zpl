@@ -42,11 +42,14 @@ func NewDecoder(r io.Reader) *Decoder {
 //
 func (d *Decoder) Decode(v interface{}) error {
 	var builder sink
+	var err error
 	switch v.(type) {
 	case sink:
 		builder = v.(sink)
 	default:
-		builder = newBuilder(v)
+		if builder, err = newBuilder(v); err != nil {
+			return err
+		}
 	}
 	for {
 		e, err := d.next()
@@ -140,24 +143,27 @@ func (d *Decoder) next() (e *parseEvent, err error) {
 	return
 }
 
-type modifier interface {
-	getSection(name string) (modifier, error)
-	addValue(name string, value string) error
-}
-
 type builder struct {
-	refs []modifier
+	refs []reflect.Value
 }
 
-func newBuilder(root interface{}) *builder {
-	var ref modifier
-	switch root.(type) {
-	case map[string]interface{}:
-		ref = mapModifier(root.(map[string]interface{}))
+func newBuilder(v interface{}) (*builder, error) {
+	var (
+		value = reflect.ValueOf(v)
+		err   error
+	)
+	switch value.Kind() {
+	case reflect.Ptr:
+		value = value.Elem()
+	case reflect.Map:
+		// Ok.
 	default:
-		ref = newRefModifier(root)
+		err = fmt.Errorf("cannot modify: must be a map or a pointer to a struct: %v.", value.Type())
 	}
-	return &builder{refs: []modifier{ref}}
+	if err != nil {
+		return nil, err
+	}
+	return &builder{refs: []reflect.Value{value}}, nil
 }
 
 func (b *builder) consume(e *parseEvent) error {
@@ -170,15 +176,17 @@ func (b *builder) consume(e *parseEvent) error {
 	switch e.Type {
 	case addValue:
 		ref := b.refs[len(b.refs)-1]
-		if err := ref.addValue(e.Name, e.Value); err != nil {
+		if err := addValueToSection(ref, e.Name, e.Value); err != nil {
 			return err
 		}
 	case endSection:
 		b.refs = b.refs[:len(b.refs)-1]
 	case startSection:
 		ref := b.refs[len(b.refs)-1]
-		if next, err := ref.getSection(e.Name); err != nil {
+		if next, err := getSubSection(ref, e.Name); err != nil {
 			return err
+		} else if !next.IsValid() {
+			return fmt.Errorf("encountered invalid value for %v.", e.Name)
 		} else {
 			b.refs = append(b.refs, next)
 		}
@@ -188,72 +196,38 @@ func (b *builder) consume(e *parseEvent) error {
 	return nil
 }
 
-type mapModifier map[string]interface{}
-
-func (m mapModifier) getSection(name string) (modifier, error) {
-	var section map[string]interface{}
-	if already, ok := m[name]; !ok {
-		section = make(map[string]interface{})
-		m[name] = section
-	} else {
-		// TODO: return an error nicely instead of failing a type assertion
-		section = already.(map[string]interface{})
-	}
-	return mapModifier(section), nil
-}
-
-func (m mapModifier) addValue(name string, value string) error {
-	if already, ok := m[name]; !ok {
-		m[name] = []interface{}{value}
-	} else {
-		switch already.(type) {
-		case []string:
-			m[name] = append(already.([]string), value)
-		case []interface{}:
-			m[name] = append(already.([]interface{}), value)
-		default:
-			return fmt.Errorf("unsupported destination property value type: %T", already)
+func getSubSection(section reflect.Value, name string) (sub reflect.Value, err error) {
+	if section.Type().Kind() == reflect.Map {
+		if section.Type().Key().Kind() != reflect.String {
+			err = fmt.Errorf("map key type must be string")
+			return
 		}
-	}
-	return nil
-}
-
-type refModifier struct {
-	reflect.Value
-}
-
-func newRefModifier(v interface{}) refModifier {
-	return refModifier{reflect.ValueOf(v).Elem()}
-}
-
-func (m refModifier) getSection(name string) (section modifier, err error) {
-	if m.Type().Kind() == reflect.Map {
-		if m.Type().Key().Kind() != reflect.String {
-			return nil, fmt.Errorf("map key type must be string")
+		if section.IsNil() {
+			section.Set(reflect.MakeMap(section.Type()))
 		}
-		if m.IsNil() {
-			m.Set(reflect.MakeMap(m.Type()))
-		}
-		switch m.Type().Elem().Kind() {
+		switch section.Type().Elem().Kind() {
 		case reflect.Ptr:
-			ptr := m.MapIndex(reflect.ValueOf(name))
+			ptr := section.MapIndex(reflect.ValueOf(name))
 			if !ptr.IsValid() {
-				ptr = reflect.New(m.Type().Elem().Elem())
-				m.SetMapIndex(reflect.ValueOf(name), ptr)
+				ptr = reflect.New(section.Type().Elem().Elem())
+				section.SetMapIndex(reflect.ValueOf(name), ptr)
 			} else if ptr.IsNil() {
-				ptr.Set(reflect.New(m.Type().Elem()))
+				ptr.Set(reflect.New(section.Type().Elem()))
 			}
-			section = refModifier{ptr.Elem()}
-		case reflect.Map:
-			return nil, fmt.Errorf("map of maps is not yet supported.")
+			return ptr.Elem(), nil
+		case reflect.Interface:
+			newmap := reflect.ValueOf(make(map[string]interface{}))
+			section.SetMapIndex(reflect.ValueOf(name), newmap)
+			return newmap, nil
 		default:
-			return nil, fmt.Errorf("map of %v is not yet supported.", m.Type().Elem())
+			err = fmt.Errorf("cannot add sub-section: map[string]%v is not yet supported.", section.Type().Elem())
+			return
 		}
-	} else if m.Type().Kind() == reflect.Struct {
+	} else if section.Type().Kind() == reflect.Struct {
 		var fi = -1
 		var squash = false
-		for i := 0; i < m.NumField(); i++ {
-			tag := m.Type().Field(i).Tag
+		for i := 0; i < section.NumField(); i++ {
+			tag := section.Type().Field(i).Tag
 			if string(tag) == name || tag.Get("zpl") == name {
 				fi = i
 			} else if (string(tag) == "*" || tag.Get("zpl") == "*") && fi < 0 {
@@ -262,84 +236,147 @@ func (m refModifier) getSection(name string) (section modifier, err error) {
 			}
 		}
 		if fi == -1 {
-			return nil, fmt.Errorf("%v has no field tagged %v", m.Type(), name)
+			err = fmt.Errorf("%v has no field tagged %v", section.Type(), name)
+			return
 		}
-		field := m.Field(fi)
+		field := section.Field(fi)
 		if field.Type().Kind() == reflect.Map {
 			if field.Type().Key().Kind() != reflect.String {
-				return nil, fmt.Errorf("map key type must be string")
+				err = fmt.Errorf("map key type must be string")
+				return
 			}
 			if field.IsNil() {
 				field.Set(reflect.MakeMap(field.Type()))
 			}
 			if !squash {
-				section = refModifier{field}
+				sub = field
 			} else {
-				helper := refModifier{field}
-				section, err = helper.getSection(name)
+				helper := field
+				sub, err = getSubSection(helper, name)
 				if err != nil {
-					return nil, err
+					return
 				}
 			}
 		} else if field.Type().Kind() == reflect.Ptr {
 			if field.IsNil() {
 				field.Set(reflect.New(field.Type().Elem()))
 			}
-			section = refModifier{field.Elem()}
+			sub = field.Elem()
 		} else {
-			return nil, fmt.Errorf("cannot unmarshal into %v", field.Type())
+			err = fmt.Errorf("cannot unmarshal into %v", field.Type())
 		}
 	} else {
-		return nil, &InvalidUnmarshalError{Type: m.Type()}
+		err = &InvalidUnmarshalError{Type: section.Type()}
+		return
 	}
-	if section == nil {
-		return nil, fmt.Errorf("unknown error.")
+	if !sub.IsValid() && err == nil {
+		err = fmt.Errorf("unknown error.")
 	}
-	return section, nil
+	return
 }
 
-func (m refModifier) addValue(name string, value string) error {
-	var fi = -1
-	for i := 0; i < m.NumField(); i++ {
-		tag := m.Type().Field(i).Tag
-		if string(tag) == name || tag.Get("zpl") == name {
-			fi = i
+func addValueToSection(section reflect.Value, name string, value string) error {
+	var field reflect.Value
+	switch section.Type().Kind() {
+	case reflect.Map:
+		key := reflect.ValueOf(name)
+		switch section.Type().Elem().Kind() {
+		case reflect.String:
+			section.SetMapIndex(key, reflect.ValueOf(value))
+			return nil
+		case reflect.Interface:
+			field = section.MapIndex(key)
+			if !field.IsValid() {
+				section.SetMapIndex(key, reflect.ValueOf([]string{value}))
+				return nil
+			} else {
+				field = reflect.ValueOf(field.Interface())
+				if newvalue, err := appendValue(field, value); err != nil {
+					return err
+				} else {
+					section.SetMapIndex(key, newvalue)
+					return nil
+				}
+			}
+		default:
+			return fmt.Errorf("cannot add value: map[string]%v is not yet supported.", section.Type().Elem())
 		}
+	case reflect.Ptr, reflect.Struct:
+		var fi = -1
+		for i := 0; i < section.NumField(); i++ {
+			tag := section.Type().Field(i).Tag
+			if string(tag) == name || tag.Get("zpl") == name {
+				fi = i
+			}
+		}
+		if fi == -1 {
+			return fmt.Errorf("%v has no field tagged %v", section.Type(), name)
+		}
+		field = section.Field(fi)
+	default:
+		return fmt.Errorf("cannot add value: must be a map or a pointer to a struct: %v.", section.Type())
 	}
-	if fi == -1 {
-		return fmt.Errorf("%v has no field tagged %v", m.Type(), name)
+	if newvalue, err := appendValue(field, value); err != nil {
+		return err
+	} else if !field.CanSet() {
+		return fmt.Errorf("cannot set value of %v", field.Type())
+	} else if !newvalue.IsValid() {
+		return fmt.Errorf("cannot figure value for %v", field.Type())
+	} else {
+		field.Set(newvalue)
 	}
-	field := m.Field(fi)
-	return m.addValueToField(field, value)
+	return nil
 }
 
-func (m refModifier) addValueToField(field reflect.Value, value string) error {
+func appendValue(field reflect.Value, value string) (result reflect.Value, err error) {
+	if !field.IsValid() {
+		err = fmt.Errorf("cannot add value to this field.")
+		return
+	}
 	switch field.Type().Kind() {
 	case reflect.Bool:
 		if parsed, err := strconv.ParseBool(value); err != nil {
-			return fmt.Errorf("could not parse bool %v", value)
+			err = fmt.Errorf("could not parse bool %v", value)
 		} else {
-			field.SetBool(parsed)
+			result = reflect.ValueOf(parsed)
 		}
 	case reflect.Float32, reflect.Float64:
 		if parsed, err := strconv.ParseFloat(value, field.Type().Bits()); err != nil {
-			return fmt.Errorf("could not parse float %v", value)
+			err = fmt.Errorf("could not parse float %v", value)
 		} else {
-			field.SetFloat(parsed)
+			switch field.Type().Kind() {
+			case reflect.Float32:
+				result = reflect.ValueOf(float32(parsed))
+			default:
+				result = reflect.ValueOf(parsed)
+			}
 		}
 	case reflect.Int, reflect.Int16, reflect.Int32, reflect.Int64:
 		if parsed, err := strconv.ParseInt(value, 10, field.Type().Bits()); err != nil {
-			return fmt.Errorf("could not parse int %v", value)
+			err = fmt.Errorf("could not parse int %v", value)
 		} else {
-			field.SetInt(parsed)
+			switch field.Type().Kind() {
+			case reflect.Int:
+				result = reflect.ValueOf(int(parsed))
+			case reflect.Int16:
+				result = reflect.ValueOf(int16(parsed))
+			case reflect.Int32:
+				result = reflect.ValueOf(int32(parsed))
+			default:
+				result = reflect.ValueOf(int64(parsed))
+			}
 		}
 	case reflect.Ptr:
 		if field.IsNil() {
-			field.Set(reflect.New(field.Type().Elem()))
+			field = reflect.New(field.Type().Elem())
 		}
-		return m.addValueToField(field.Elem(), value)
+		var target reflect.Value
+		if target, err = appendValue(field.Elem(), value); err == nil {
+			field.Elem().Set(target)
+		}
+		result = field
 	case reflect.String:
-		field.SetString(value)
+		return reflect.ValueOf(value), nil
 	case reflect.Slice:
 		var next reflect.Value
 		typ := field.Type()
@@ -347,11 +384,13 @@ func (m refModifier) addValueToField(field reflect.Value, value string) error {
 		case reflect.String:
 			next = reflect.ValueOf(value)
 		default:
-			return fmt.Errorf("slice of %v is not yet supported.", typ)
+			err = fmt.Errorf("slice of %v is not yet supported.", typ.Elem())
 		}
-		field.Set(reflect.Append(field, next))
+		if err == nil {
+			result = reflect.Append(field, next)
+		}
 	default:
-		return fmt.Errorf("cannot set field of type %v", field.Type())
+		err = fmt.Errorf("cannot set or append to %v", field.Type())
 	}
-	return nil
+	return
 }

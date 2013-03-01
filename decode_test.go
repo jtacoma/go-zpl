@@ -66,27 +66,31 @@ func TestUnmarshal_Map(t *testing.T) {
 	if !ok {
 		t.Fatalf("iothreads not found.")
 	}
-	iothreads := tmp.([]interface{})
+	iothreads := tmp.([]string)
 	if len(iothreads) != 1 {
 		t.Fatalf("len(iothreads) = %d", len(iothreads))
 	}
-	if iothreads[0].(string) != "1" {
+	if iothreads[0] != "1" {
 		t.Fatalf("context/iothreads[0] = %v", iothreads[0])
 	}
 	tmp, ok = context["verbose"]
-	verbose := tmp.([]interface{})
-	if verbose[0].(string) != "1" {
+	verbose := tmp.([]string)
+	if verbose[0] != "1" {
 		t.Fatalf("context/verbose[0] = %v", verbose[0])
 	}
 	main := conf["main"].(map[string]interface{})
 	frontend := main["frontend"].(map[string]interface{})
 	option := frontend["option"].(map[string]interface{})
-	subscribe := option["subscribe"].([]interface{})
+	subscribe := option["subscribe"].([]string)
 	if subscribe[0] != "#2" {
-		t.Fatalf("main/frontend/subscribe[0] = %v (length %d)", subscribe[0], len(subscribe[0].(string)))
+		t.Fatalf("main/frontend/subscribe[0] = %v (length %d)", subscribe[0], len(subscribe[0]))
 	}
 	backend := main["backend"].(map[string]interface{})
-	bind := backend["bind"].([]interface{})
+	ibind, ok := backend["bind"]
+	if !ok {
+		t.Fatalf("main/backend/bind = nil")
+	}
+	bind := ibind.([]string)
 	if bind[0] != "tcp://eth0:5556" {
 		t.Fatalf("main/backend/bind[0] = %v", bind[0])
 	}
