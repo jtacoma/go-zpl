@@ -58,7 +58,7 @@ func (e *SyntaxError) Error() string {
 // Array and slice values encode as repetitions of the same property.
 //
 // Struct values encode as ZPL sections.  Each exported struct field becomes a
-// member of the object unless the field's tag is "-".  The "zpl" key in the
+// property in the section unless the field's tag is "-".  The "zpl" key in the
 // struct field's tag value is the key name.  Examples:
 //
 //   // Field is ignored by this package.
@@ -71,9 +71,9 @@ func (e *SyntaxError) Error() string {
 // alphanumeric ([A-Za-z0-9]) characters.
 //
 // Map values encode as ZPL sections unless their tag is "*", in which case they
-// will be collapsed into their parent.  There can be only one "*"-tagged
-// map in any marshalled struct.  The map's key type must be string; the object
-// keys are used directly as map keys.
+// will be collapsed into their parent.  There can be only one "*"-tagged map in
+// any marshalled struct.  The map's key type must be string; the map keys are
+// used directly as property and sub-section names.
 //
 // Pointer values encode as the value pointed to.
 //
