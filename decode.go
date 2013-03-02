@@ -41,14 +41,16 @@ func NewDecoder(r io.Reader) *Decoder {
 // into a Go value.
 //
 func (d *Decoder) Decode(v interface{}) error {
-	var builder sink
-	var err error
+	var (
+		builder sink
+		fault   error
+	)
 	switch v.(type) {
 	case sink:
 		builder = v.(sink)
 	default:
-		if builder, err = newBuilder(v); err != nil {
-			return err
+		if builder, fault = newBuilder(v); fault != nil {
+			return fault
 		}
 	}
 	for {
@@ -58,10 +60,12 @@ func (d *Decoder) Decode(v interface{}) error {
 		} else if err != nil {
 			return err
 		} else if err = builder.consume(e); err != nil {
-			return err
+			if fault == nil {
+				fault = err
+			}
 		}
 	}
-	return nil
+	return fault
 }
 
 func (d *Decoder) next() (e *parseEvent, err error) {
@@ -98,7 +102,7 @@ func (d *Decoder) next() (e *parseEvent, err error) {
 				d.buffer = append(d.buffer, b...)
 				break
 			} else if err != nil {
-				return
+				return // error from Read()
 			} else {
 				d.buffer = append(d.buffer, b...)
 			}
@@ -112,7 +116,7 @@ func (d *Decoder) next() (e *parseEvent, err error) {
 		}
 	}
 	if err == io.EOF && len(line) == 0 {
-		return
+		return // nothing left to read
 	}
 	match := rekeyquoted.FindSubmatch(line)
 	if match == nil {
@@ -314,6 +318,7 @@ func addValueToSection(section reflect.Value, name string, value string) error {
 	return nil
 }
 
+// Append value to target (optionally a 
 func appendValue(typ reflect.Type, target reflect.Value, value string) (result reflect.Value, err error) {
 	if target.IsValid() {
 		typ = target.Type()
@@ -406,7 +411,6 @@ func appendValue(typ reflect.Type, target reflect.Value, value string) (result r
 			err = fmt.Errorf("slice of %v is not yet supported.", typ.Elem())
 		}
 	default:
-		panic(fmt.Sprintf("cannot set or append to %v", typ))
 		err = fmt.Errorf("cannot set or append to %v", typ)
 	}
 	return

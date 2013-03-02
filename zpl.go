@@ -110,8 +110,8 @@ func Marshal(v interface{}) ([]byte, error) {
 // map[string]interface{} in the interface value.
 //
 // If a ZPL value is not appropriate for a given target type, or if a ZPL number
-// overflows the target type, Unmarshal returns the error and does not process
-// any remaining data.
+// overflows the target type, Unmarshal returns the error after processing the
+// remaining data.
 //
 func Unmarshal(src []byte, dst interface{}) error {
 	r := bytes.NewReader(src)

@@ -39,6 +39,7 @@ func (w *Encoder) Encode(v interface{}) error {
 }
 
 func (w *Encoder) encode(value reflect.Value) error {
+	var fault error
 	switch value.Type().Kind() {
 	case reflect.Ptr:
 		return w.encode(value.Elem())
@@ -47,7 +48,9 @@ func (w *Encoder) encode(value reflect.Value) error {
 			for _, key := range value.MapKeys() {
 				v := value.MapIndex(key)
 				if err := marshalProperty(w, key.String(), v); err != nil {
-					return err
+					if fault == nil {
+						fault = err
+					}
 				}
 			}
 		}
@@ -62,12 +65,14 @@ func (w *Encoder) encode(value reflect.Value) error {
 			}
 			if len(tag) > 0 {
 				if err := marshalProperty(w, name, value.Field(i)); err != nil {
-					return err
+					if fault == nil {
+						fault = err
+					}
 				}
 			}
 		}
 	}
-	return nil
+	return fault
 }
 
 func (e *Encoder) addValue(name string, value string) error {
@@ -116,6 +121,8 @@ func marshalProperty(e *Encoder, name string, value reflect.Value) error {
 		}
 	case reflect.Int16, reflect.Int32, reflect.Int64, reflect.Int:
 		e.addValue(name, strconv.FormatInt(value.Int(), 10))
+	case reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uint:
+		e.addValue(name, strconv.FormatUint(value.Uint(), 10))
 	case reflect.Float32, reflect.Float64:
 		e.addValue(name, strconv.FormatFloat(value.Float(), 'f', -1, value.Type().Bits()))
 	case reflect.Bool:
