@@ -153,19 +153,21 @@ func TestUnmarshal_Reflect(t *testing.T) {
 	if conf.Context.Verbose != true {
 		t.Fatalf("context/verbose = %v", conf.Context.Verbose)
 	}
-	if *conf.Devices["main"].Sockets["frontend"].Options.Hwm != 1000 {
-		t.Fatalf("main/frontend/hwm = %v",
+	if conf.Devices["main"].Sockets["frontend"].Options.Hwm == nil {
+		t.Errorf("main/frontend/hwm = nil")
+	} else if *conf.Devices["main"].Sockets["frontend"].Options.Hwm != 1000 {
+		t.Errorf("main/frontend/hwm = %v",
 			*conf.Devices["main"].Sockets["frontend"].Options.Hwm)
 	}
 	if conf.Devices["main"].Sockets["frontend"].Options.Subscribe[0] != "#2" {
-		t.Fatalf("main/frontend/subscribe[0] = %v",
+		t.Errorf("main/frontend/subscribe[0] = %v",
 			conf.Devices["main"].Sockets["frontend"].Options.Subscribe[0])
 	}
 	if conf.Devices["main"].Sockets["backend"].Bind[0] != "tcp://eth0:5556" {
-		t.Fatalf("main/backend/bind[0] = %v", conf.Devices["main"].Sockets["backend"].Bind[0])
+		t.Errorf("main/backend/bind[0] = %v", conf.Devices["main"].Sockets["backend"].Bind[0])
 	}
 	if conf.Devices["main"].Sockets["backend"].Bind[1] != "inproc://device" {
-		t.Fatalf("main/backend/bind[1] = %v", conf.Devices["main"].Sockets["backend"].Bind[1])
+		t.Errorf("main/backend/bind[1] = %v", conf.Devices["main"].Sockets["backend"].Bind[1])
 	}
 	var dict Dictionary
 	err = Unmarshal(raw1, &dict)

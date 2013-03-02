@@ -276,30 +276,16 @@ func getSubSection(section reflect.Value, name string) (sub reflect.Value, err e
 }
 
 func addValueToSection(section reflect.Value, name string, value string) error {
-	var field reflect.Value
 	switch section.Type().Kind() {
 	case reflect.Map:
 		key := reflect.ValueOf(name)
-		switch section.Type().Elem().Kind() {
-		case reflect.String:
-			section.SetMapIndex(key, reflect.ValueOf(value))
-			return nil
-		case reflect.Interface:
-			field = section.MapIndex(key)
-			if !field.IsValid() {
-				section.SetMapIndex(key, reflect.ValueOf([]string{value}))
-				return nil
-			} else {
-				field = reflect.ValueOf(field.Interface())
-				if newvalue, err := appendValue(field, value); err != nil {
-					return err
-				} else {
-					section.SetMapIndex(key, newvalue)
-					return nil
-				}
-			}
-		default:
-			return fmt.Errorf("cannot add value: map[string]%v is not yet supported.", section.Type().Elem())
+		existing := section.MapIndex(key)
+		adjusted, err := appendValue(section.Type().Elem(), existing, value)
+		if err != nil {
+			return err
+		}
+		if adjusted.IsValid() {
+			section.SetMapIndex(key, adjusted)
 		}
 	case reflect.Ptr, reflect.Struct:
 		var fi = -1
@@ -312,39 +298,45 @@ func addValueToSection(section reflect.Value, name string, value string) error {
 		if fi == -1 {
 			return fmt.Errorf("%v has no field tagged %v", section.Type(), name)
 		}
-		field = section.Field(fi)
+		existing := section.Field(fi)
+		adjusted, err := appendValue(existing.Type(), existing, value)
+		if err != nil {
+			return err
+		}
+		if !adjusted.IsValid() && !existing.IsValid() {
+			return fmt.Errorf("failed to add value for %v.", name)
+		} else if adjusted.IsValid() && adjusted != existing {
+			existing.Set(adjusted)
+		}
 	default:
 		return fmt.Errorf("cannot add value: must be a map or a pointer to a struct: %v.", section.Type())
-	}
-	if newvalue, err := appendValue(field, value); err != nil {
-		return err
-	} else if !field.CanSet() {
-		return fmt.Errorf("cannot set value of %v", field.Type())
-	} else if !newvalue.IsValid() {
-		return fmt.Errorf("cannot figure value for %v", field.Type())
-	} else {
-		field.Set(newvalue)
 	}
 	return nil
 }
 
-func appendValue(field reflect.Value, value string) (result reflect.Value, err error) {
-	if !field.IsValid() {
-		err = fmt.Errorf("cannot add value to this field.")
-		return
+func appendValue(typ reflect.Type, target reflect.Value, value string) (result reflect.Value, err error) {
+	if target.IsValid() {
+		typ = target.Type()
 	}
-	switch field.Type().Kind() {
+	if typ.Kind() == reflect.Interface {
+		typ = reflect.TypeOf([]string{})
+	}
+	switch typ.Kind() {
 	case reflect.Bool:
 		if parsed, err := strconv.ParseBool(value); err != nil {
-			err = fmt.Errorf("could not parse bool %v", value)
+			err = fmt.Errorf("could not parse bool: %v", value)
+		} else if target.IsValid() {
+			target.SetBool(parsed)
 		} else {
 			result = reflect.ValueOf(parsed)
 		}
 	case reflect.Float32, reflect.Float64:
-		if parsed, err := strconv.ParseFloat(value, field.Type().Bits()); err != nil {
-			err = fmt.Errorf("could not parse float %v", value)
+		if parsed, err := strconv.ParseFloat(value, typ.Bits()); err != nil {
+			err = fmt.Errorf("could not parse float: %v", value)
+		} else if target.IsValid() {
+			target.SetFloat(parsed)
 		} else {
-			switch field.Type().Kind() {
+			switch typ.Kind() {
 			case reflect.Float32:
 				result = reflect.ValueOf(float32(parsed))
 			default:
@@ -352,10 +344,12 @@ func appendValue(field reflect.Value, value string) (result reflect.Value, err e
 			}
 		}
 	case reflect.Int, reflect.Int16, reflect.Int32, reflect.Int64:
-		if parsed, err := strconv.ParseInt(value, 10, field.Type().Bits()); err != nil {
-			err = fmt.Errorf("could not parse int %v", value)
+		if parsed, err := strconv.ParseInt(value, 10, typ.Bits()); err != nil {
+			err = fmt.Errorf("could not parse int: %v", value)
+		} else if target.IsValid() {
+			target.SetInt(parsed)
 		} else {
-			switch field.Type().Kind() {
+			switch typ.Kind() {
 			case reflect.Int:
 				result = reflect.ValueOf(int(parsed))
 			case reflect.Int16:
@@ -363,34 +357,57 @@ func appendValue(field reflect.Value, value string) (result reflect.Value, err e
 			case reflect.Int32:
 				result = reflect.ValueOf(int32(parsed))
 			default:
-				result = reflect.ValueOf(int64(parsed))
+				result = reflect.ValueOf(parsed)
+			}
+		}
+	case reflect.Uint, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		if parsed, err := strconv.ParseUint(value, 10, typ.Bits()); err != nil {
+			err = fmt.Errorf("could not parse unsigned int: %v", value)
+		} else if target.IsValid() {
+			target.SetUint(parsed)
+		} else {
+			switch typ.Kind() {
+			case reflect.Uint:
+				result = reflect.ValueOf(uint(parsed))
+			case reflect.Uint16:
+				result = reflect.ValueOf(uint16(parsed))
+			case reflect.Uint32:
+				result = reflect.ValueOf(uint32(parsed))
+			default:
+				result = reflect.ValueOf(parsed)
 			}
 		}
 	case reflect.Ptr:
-		if field.IsNil() {
-			field = reflect.New(field.Type().Elem())
+		if target.IsNil() {
+			target.Set(reflect.New(typ.Elem()))
 		}
-		var target reflect.Value
-		if target, err = appendValue(field.Elem(), value); err == nil {
-			field.Elem().Set(target)
+		var elem reflect.Value
+		if elem, err = appendValue(typ.Elem(), target.Elem(), value); err == nil && elem.IsValid() {
+			target.Elem().Set(elem)
 		}
-		result = field
 	case reflect.String:
-		return reflect.ValueOf(value), nil
+		result = reflect.ValueOf(value)
 	case reflect.Slice:
 		var next reflect.Value
-		typ := field.Type()
 		switch typ.Elem().Kind() {
 		case reflect.String:
 			next = reflect.ValueOf(value)
-		default:
+		}
+		if next.IsValid() {
+			if !target.IsValid() {
+				result = reflect.MakeSlice(typ, 0, 4)
+			} else if target.Type().Kind() == reflect.Interface {
+				result = reflect.ValueOf(target.Interface())
+			} else {
+				result = target
+			}
+			result = reflect.Append(result, next)
+		} else {
 			err = fmt.Errorf("slice of %v is not yet supported.", typ.Elem())
 		}
-		if err == nil {
-			result = reflect.Append(field, next)
-		}
 	default:
-		err = fmt.Errorf("cannot set or append to %v", field.Type())
+		panic(fmt.Sprintf("cannot set or append to %v", typ))
+		err = fmt.Errorf("cannot set or append to %v", typ)
 	}
 	return
 }
