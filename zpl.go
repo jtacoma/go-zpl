@@ -11,7 +11,6 @@ package zpl
 import (
 	"bytes"
 	"reflect"
-	"regexp"
 	"strconv"
 )
 
@@ -135,12 +134,4 @@ const (
 	addValue eventType = iota
 	endSection
 	startSection
-)
-
-var (
-	reskip     = regexp.MustCompile(`^\s*(#.*)?$`)
-	rekeyvalue = regexp.MustCompile(
-		`^(?P<indent>(    )*)(?P<key>[a-zA-Z0-9][a-zA-Z0-9/]*)(\s*(?P<hasvalue>=)\s*(?P<value>[^ ].*))?$`)
-	rekeyquoted = regexp.MustCompile(
-		`^(?P<indent>(    )*)(?P<key>[a-zA-Z0-9][a-zA-Z0-9/]*)(\s*(?P<hasvalue>=)\s*"(?P<value>[^ ].*)")?$`)
 )

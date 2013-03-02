@@ -9,6 +9,7 @@ import (
 	"errors"
 	"io"
 	"reflect"
+	"regexp"
 	"strconv"
 )
 
@@ -69,6 +70,13 @@ func (d *Decoder) Decode(v interface{}) error {
 	return fault
 }
 
+var (
+	rekeyvalue = regexp.MustCompile(
+		`^(?P<indent>(    )*)(?P<key>[a-zA-Z0-9][a-zA-Z0-9/]*)(\s*(?P<hasvalue>=)\s*(?P<value>[^ ].*))?$`)
+	rekeyquoted = regexp.MustCompile(
+		`^(?P<indent>(    )*)(?P<key>[a-zA-Z0-9][a-zA-Z0-9/]*)(\s*(?P<hasvalue>=)\s*"(?P<value>[^ ].*)")?$`)
+)
+
 func (d *Decoder) next() (e *parseEvent, err error) {
 	if len(d.queue) > 0 {
 		e = d.queue[0]
@@ -110,7 +118,7 @@ func (d *Decoder) next() (e *parseEvent, err error) {
 		}
 		if err == io.EOF {
 			break
-		} else if len(line) == 0 || reskip.Match(line) {
+		} else if len(line) == 0 || bytes.Trim(line, " \t")[0] == '#' {
 			continue
 		} else {
 			break
