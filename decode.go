@@ -55,14 +55,15 @@ func (d *Decoder) Decode(v interface{}) error {
 	}
 	for {
 		e, err := d.next()
+		if e != nil {
+			if e := builder.consume(e); e != nil && fault == nil {
+				fault = e
+			}
+		}
 		if err == io.EOF {
 			break
 		} else if err != nil {
 			return err
-		} else if err = builder.consume(e); err != nil {
-			if fault == nil {
-				fault = err
-			}
 		}
 	}
 	return fault
@@ -99,12 +100,12 @@ func (d *Decoder) next() (e *parseEvent, err error) {
 			b := make([]byte, 64)
 			n, err = d.r.Read(b)
 			if err == io.EOF {
-				d.buffer = append(d.buffer, b...)
+				d.buffer = append(d.buffer, b[:n]...)
 				break
 			} else if err != nil {
 				return // error from Read()
 			} else {
-				d.buffer = append(d.buffer, b...)
+				d.buffer = append(d.buffer, b[:n]...)
 			}
 		}
 		if err == io.EOF {
@@ -116,7 +117,11 @@ func (d *Decoder) next() (e *parseEvent, err error) {
 		}
 	}
 	if err == io.EOF && len(line) == 0 {
-		return // nothing left to read
+		if len(d.buffer) > 0 {
+			line = d.buffer
+		} else {
+			return // nothing left to read
+		}
 	}
 	match := rekeyquoted.FindSubmatch(line)
 	if match == nil {

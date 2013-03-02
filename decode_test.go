@@ -18,6 +18,9 @@ context
     iothreads = 1
     verbose = 1
 
+auxiliary
+    type = foo
+
 main
     type = zmq_queue
     frontend
@@ -28,12 +31,7 @@ main
         bind = tcp://eth0:5555
     backend
         bind = tcp://eth0:5556
-        bind = inproc://device
-
-auxiliary
-    type = foo
-    socket0
-    socket1`)
+        bind = inproc://device`)
 	raw1 = []byte(`version = 1
 # The first line is not a comment.  What happens?
 words
@@ -95,7 +93,7 @@ func TestUnmarshal_Map(t *testing.T) {
 		t.Fatalf("main/backend/bind[0] = %v", bind[0])
 	}
 	if bind[1] != "inproc://device" {
-		t.Fatalf("main/backend/bind[1] = %v", bind[0])
+		t.Fatalf("main/backend/bind[1] = %v", bind[1])
 	}
 }
 
