@@ -10,9 +10,9 @@ package zpl
 
 import (
 	"bytes"
-	"fmt"
 	"reflect"
 	"regexp"
+	"strconv"
 )
 
 // An InvalidUnmarshalError describes an invalid argument passed to Unmarshal.
@@ -36,11 +36,11 @@ func (e *InvalidUnmarshalError) Error() string {
 //
 type SyntaxError struct {
 	msg  string // description of error
-	Line int64  // error occurred line number Line
+	Line uint64 // error occurred on this line
 }
 
 func (e *SyntaxError) Error() string {
-	return fmt.Sprintf("%d:%s", e.Line, e.msg)
+	return strconv.FormatUint(e.Line, 10) + ":" + e.msg
 }
 
 // Marshal returns the ZPL encoding of v.

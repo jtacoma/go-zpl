@@ -5,7 +5,7 @@
 package zpl
 
 import (
-	"fmt"
+	"errors"
 	"io"
 	"reflect"
 	"strconv"
@@ -90,7 +90,7 @@ func (e *Encoder) startSection(name string) error {
 
 func (e *Encoder) endSection() error {
 	if len(e.indent) < 4 {
-		return fmt.Errorf("zpl: unexpected end of section.")
+		return errors.New("zpl: unexpected end of section.")
 	}
 	e.indent = e.indent[:len(e.indent)-4]
 	return nil
