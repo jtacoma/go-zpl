@@ -2,9 +2,24 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-// The go-zpl package provides methods for consuming and producing data in the
-// ZeroMQ Property Language (ZPL) encoding defined in
-// http://rfc.zeromq.org/spec:4.
+// The go-zpl package provides methods for consuming and producing data
+// in the ZeroMQ Property Language (ZPL).
+//
+// ZPL is defined here: http://rfc.zeromq.org/spec:4.
+//
+// This package mimics Go's standard "encodings" packages so should be
+// easy to get started with.  Since this package is new, there may be
+// some loose ends: please submit bug reports to:
+//
+// https://github.com/jtacoma/go-zpl/issues
+//
+// While ZPL shares some structural qualities with JSON there are some
+// major differences worth noting.  First, the root must be either an
+// object or a map.  Of course, in a configuration file format, this
+// makes perfect sense.  Second, two or more ZPL files can be
+// effectively merged by simply concatenating them together.  Given that
+// configuration files are often split into different scopes (e.g.
+// system, application, user), this feature is also good news.
 //
 package zpl
 
