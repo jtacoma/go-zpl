@@ -331,7 +331,7 @@ func addValueToSection(section reflect.Value, name string, value string) error {
 	return nil
 }
 
-// Append value to target (optionally a 
+// Append value to target.
 func appendValue(typ reflect.Type, target reflect.Value, value string) (result reflect.Value, err error) {
 	if target.IsValid() {
 		typ = target.Type()
