@@ -77,12 +77,29 @@ type InvalidUnmarshalError struct {
 
 func (e *InvalidUnmarshalError) Error() string {
 	if e.Type == nil {
-		return "zpl: Unmarshal(nil)"
+		return "zpl: cannot unmarshal into nil."
 	}
-	if e.Type.Kind() != reflect.Ptr {
-		return "zpl: Unmarshal(non-pointer " + e.Type.String() + ")"
-	}
-	return "zpl: Unmarshal(nil " + e.Type.String() + ")"
+	return "zpl: cannot unmarshal into " + e.Type.String() + "."
+}
+
+// An UnmarshalTypeError describes a ZPL value that was not appropriate for a value of a specific Go type. 
+type UnmarshalFieldError struct {
+	Key  string
+	Type reflect.Type
+}
+
+func (e *UnmarshalFieldError) Error() string {
+	return "zpl: no field tagged \"" + e.Key + "\" could be found on " + e.Type.String()
+}
+
+// An UnmarshalTypeError describes a ZPL value that was not appropriate for a value of a specific Go type. 
+type UnmarshalTypeError struct {
+	Value string       // description of ZPL value - "bool", "array", "number -5"
+	Type  reflect.Type // type of Go value it could not be assigned to
+}
+
+func (e *UnmarshalTypeError) Error() string {
+	return "zpl: cannot unmarshal " + e.Value + " into " + e.Type.String()
 }
 
 // A SyntaxError is a description of a ZPL syntax error.

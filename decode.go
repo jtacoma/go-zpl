@@ -46,19 +46,15 @@ func (d *Decoder) Decode(v interface{}) error {
 		builder sink
 		fault   error
 	)
-	switch v.(type) {
-	case sink:
-		builder = v.(sink)
-	default:
-		if builder, fault = newBuilder(v); fault != nil {
-			return fault
-		}
+	if builder, fault = newBuilder(v); fault != nil {
+		return fault
 	}
 	for {
 		e, err := d.next()
 		if e != nil {
-			if e := builder.consume(e); e != nil && fault == nil {
-				fault = e
+			if err2 := builder.consume(e); err2 != nil && fault == nil {
+				fault = err2
+				break
 			}
 		}
 		if err == io.EOF {
@@ -165,6 +161,9 @@ type builder struct {
 }
 
 func newBuilder(v interface{}) (*builder, error) {
+	if v == nil {
+		return nil, &InvalidUnmarshalError{nil}
+	}
 	var (
 		value = reflect.ValueOf(v)
 		err   error
@@ -172,10 +171,21 @@ func newBuilder(v interface{}) (*builder, error) {
 	switch value.Kind() {
 	case reflect.Ptr:
 		value = value.Elem()
+		switch value.Kind() {
+		case reflect.Map, reflect.Struct:
+			// Ok.
+		default:
+			err = &InvalidUnmarshalError{reflect.TypeOf(v)}
+		}
 	case reflect.Map:
-		// Ok.
+		switch value.Type().Key().Kind() {
+		case reflect.String:
+			// Ok.
+		default:
+			err = &InvalidUnmarshalError{reflect.TypeOf(v)}
+		}
 	default:
-		err = errors.New("zpl: cannot modify: must be a map or a pointer to a struct: " + value.Type().String())
+		err = &InvalidUnmarshalError{reflect.TypeOf(v)}
 	}
 	if err != nil {
 		return nil, err
@@ -185,10 +195,10 @@ func newBuilder(v interface{}) (*builder, error) {
 
 func (b *builder) consume(e *parseEvent) error {
 	if b == nil {
-		return errors.New("zpl: nil builder cannot consume events.")
+		panic("zpl: nil builder cannot consume events.")
 	}
 	if len(b.refs) == 0 {
-		return errors.New("zpl: uninitialized builder cannot consume events.")
+		panic("zpl: uninitialized builder cannot consume events.")
 	}
 	switch e.Type {
 	case addValue:
@@ -202,8 +212,6 @@ func (b *builder) consume(e *parseEvent) error {
 		ref := b.refs[len(b.refs)-1]
 		if next, err := getSubSection(ref, e.Name); err != nil {
 			return err
-		} else if !next.IsValid() {
-			return errors.New("zpl: encountered invalid value for " + e.Name)
 		} else {
 			b.refs = append(b.refs, next)
 		}
@@ -237,7 +245,10 @@ func getSubSection(section reflect.Value, name string) (sub reflect.Value, err e
 			section.SetMapIndex(reflect.ValueOf(name), newmap)
 			return newmap, nil
 		default:
-			err = errors.New("zpl: cannot add sub-section: map[string]" + section.Type().Elem().String() + " is not yet supported.")
+			err = &UnmarshalTypeError{
+				Value: "subsection \"" + name + "\"",
+				Type:  section.Type().Elem(),
+			}
 			return
 		}
 	} else if section.Type().Kind() == reflect.Struct {
@@ -253,7 +264,10 @@ func getSubSection(section reflect.Value, name string) (sub reflect.Value, err e
 			}
 		}
 		if fi == -1 {
-			err = errors.New("zpl: " + section.Type().String() + " has no field tagged " + name)
+			err = &UnmarshalFieldError{
+				Key:  name,
+				Type: section.Type(),
+			}
 			return
 		}
 		field := section.Field(fi)
@@ -313,7 +327,10 @@ func addValueToSection(section reflect.Value, name string, value string) error {
 			}
 		}
 		if fi == -1 {
-			return errors.New("zpl: " + section.Type().String() + " has no field tagged " + name)
+			return &UnmarshalFieldError{
+				Key:  name,
+				Type: section.Type(),
+			}
 		}
 		existing := section.Field(fi)
 		adjusted, err := appendValue(existing.Type(), existing, value)
@@ -326,7 +343,10 @@ func addValueToSection(section reflect.Value, name string, value string) error {
 			existing.Set(adjusted)
 		}
 	default:
-		return errors.New("zpl: cannot add value: must be a map or a pointer to a struct: " + section.Type().String())
+		return &UnmarshalFieldError{
+			Key:  name,
+			Type: section.Type(),
+		}
 	}
 	return nil
 }
@@ -343,7 +363,7 @@ func appendValue(typ reflect.Type, target reflect.Value, value string) (result r
 	case reflect.Bool:
 		if parsed, err := strconv.ParseBool(value); err != nil {
 			err = errors.New("zpl: could not parse bool: " + value)
-		} else if target.IsValid() {
+		} else if target.IsValid() && target.CanSet() {
 			target.SetBool(parsed)
 		} else {
 			result = reflect.ValueOf(parsed)
@@ -351,7 +371,7 @@ func appendValue(typ reflect.Type, target reflect.Value, value string) (result r
 	case reflect.Float32, reflect.Float64:
 		if parsed, err := strconv.ParseFloat(value, typ.Bits()); err != nil {
 			err = errors.New("zpl: could not parse float: " + value)
-		} else if target.IsValid() {
+		} else if target.IsValid() && target.CanSet() {
 			target.SetFloat(parsed)
 		} else {
 			switch typ.Kind() {
@@ -364,7 +384,7 @@ func appendValue(typ reflect.Type, target reflect.Value, value string) (result r
 	case reflect.Int, reflect.Int16, reflect.Int32, reflect.Int64:
 		if parsed, err := strconv.ParseInt(value, 10, typ.Bits()); err != nil {
 			err = errors.New("zpl: could not parse int: " + value)
-		} else if target.IsValid() {
+		} else if target.IsValid() && target.CanSet() {
 			target.SetInt(parsed)
 		} else {
 			switch typ.Kind() {
@@ -381,7 +401,7 @@ func appendValue(typ reflect.Type, target reflect.Value, value string) (result r
 	case reflect.Uint, reflect.Uint16, reflect.Uint32, reflect.Uint64:
 		if parsed, err := strconv.ParseUint(value, 10, typ.Bits()); err != nil {
 			err = errors.New("zpl: could not parse unsigned int: " + value)
-		} else if target.IsValid() {
+		} else if target.IsValid() && target.CanSet() {
 			target.SetUint(parsed)
 		} else {
 			switch typ.Kind() {
@@ -424,7 +444,10 @@ func appendValue(typ reflect.Type, target reflect.Value, value string) (result r
 			err = errors.New("zpl: slice of " + typ.Elem().String() + " is not yet supported.")
 		}
 	default:
-		err = errors.New("zpl: cannot set or append to " + typ.String())
+		err = &UnmarshalTypeError{
+			Value: value,
+			Type:  typ,
+		}
 	}
 	return
 }

@@ -5,6 +5,8 @@
 package zpl
 
 import (
+	"bytes"
+	"strings"
 	"testing"
 )
 
@@ -31,7 +33,8 @@ main
         bind = tcp://eth0:5555
     backend
         bind = tcp://eth0:5556
-        bind = inproc://device`)
+        bind = inproc://device
+`)
 	raw1 = []byte(`version = 1
 # The first line is not a comment.  What happens?
 words
@@ -47,6 +50,10 @@ invalid line with spaces`)
 	bad1 = []byte(`
 # This is an example of an invalid ZPL document.
     key = overly indented value`)
+	other_crlf = []byte("key = 1\r\nkey = 0")
+	other_lfcr = []byte("key = 1\n\rkey = 0")
+	other_cr   = []byte("key = 1\rkey = 0")
+	other_lf   = []byte("key = 1\nkey = 0")
 )
 
 func TestUnmarshal_Map(t *testing.T) {
@@ -199,5 +206,71 @@ func TestUnmarshal_Bad(t *testing.T) {
 	err = Unmarshal(bad1, &conf)
 	if err == nil {
 		t.Fatalf("expected error unmarshalling bad1, got none.")
+	}
+}
+
+type decodeCase struct {
+	Raw    []byte
+	Value  interface{}
+	ErrSub string
+}
+
+func TestDecoder_Decode_InvalidUnmarshalError(t *testing.T) {
+	var i int
+	invalid := []decodeCase{
+		{raw0, nil, " nil"},
+		{raw0, 3, " int"},
+		{raw0, &i, " *int"},
+		{raw0, make(map[int]bool), " map[int]bool"},
+	}
+	for _, c := range invalid {
+		reader := bytes.NewReader(c.Raw)
+		decoder := NewDecoder(reader)
+		if err := decoder.Decode(c.Value); err == nil {
+			t.Errorf("expected InvalidUnmarshalError, got nil.")
+		} else if _, ok := err.(*InvalidUnmarshalError); !ok {
+			t.Errorf("expected InvalidUnmarshalError, got %T: %s.", err, err.Error())
+		} else if !strings.Contains(err.Error(), c.ErrSub) {
+			t.Errorf("expected error message about %s, got %s.", c.ErrSub, err.Error())
+		}
+	}
+}
+
+func TestDecoder_Decode_MixedLineEndings(t *testing.T) {
+	weirdos := [][]byte{other_cr, other_crlf, other_lf, other_lfcr}
+	for _, w := range weirdos {
+		m := make(map[string]bool)
+		if err := NewDecoder(bytes.NewReader(w)).Decode(m); err != nil {
+			t.Errorf("while parsing weird line endings: %T: %s", err, err.Error())
+		}
+	}
+}
+
+func TestDecoder_Decode_UnmarshalFieldError(t *testing.T) {
+	m := &decodeCase{}
+	if err := NewDecoder(bytes.NewReader(raw0)).Decode(m); err == nil {
+		t.Errorf("expected error, got success.")
+	} else if _, ok := err.(*UnmarshalFieldError); !ok {
+		t.Errorf("expected UnmarshalFieldError, got %T: %s", err, err.Error())
+	} else if !strings.Contains(err.Error(), "decodeCase") {
+		t.Errorf("expected error message about decodeCase, got %s", err.Error())
+	}
+}
+
+func TestDecoder_Decode_UnmarshalTypeError(t *testing.T) {
+	unmarshaltype := []decodeCase{
+		{raw0, make(map[string]bool), " bool"},
+		{raw0, make(map[string]map[string]string), " map[string]string"},
+	}
+	for _, c := range unmarshaltype {
+		reader := bytes.NewReader(c.Raw)
+		decoder := NewDecoder(reader)
+		if err := decoder.Decode(c.Value); err == nil {
+			t.Errorf("expected error decoding into %T, got success.", c.Value)
+		} else if _, ok := err.(*UnmarshalTypeError); !ok {
+			t.Errorf("expected UnmarshalTypeError decoding into %T, got %T: %s", c.Value, err, err.Error())
+		} else if !strings.Contains(err.Error(), c.ErrSub) {
+			t.Errorf("expected error message about %s, got %s.", c.ErrSub, err.Error())
+		}
 	}
 }
