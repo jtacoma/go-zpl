@@ -13,6 +13,76 @@ import (
 	"strconv"
 )
 
+// An InvalidUnmarshalError describes an invalid argument passed to Unmarshal.
+// (The argument to Unmarshal must be a non-nil pointer.)
+//
+type InvalidUnmarshalError struct {
+	Type reflect.Type
+}
+
+func (e *InvalidUnmarshalError) Error() string {
+	if e.Type == nil {
+		return "zpl: cannot unmarshal into nil."
+	}
+	return "zpl: cannot unmarshal into " + e.Type.String() + "."
+}
+
+// An UnmarshalTypeError describes a ZPL value that was not appropriate for a value of a specific Go type. 
+type UnmarshalFieldError struct {
+	Key  string
+	Type reflect.Type
+}
+
+func (e *UnmarshalFieldError) Error() string {
+	return "zpl: no field tagged \"" + e.Key + "\" could be found on " + e.Type.String()
+}
+
+// An UnmarshalTypeError describes a ZPL value that was not appropriate for a value of a specific Go type. 
+type UnmarshalTypeError struct {
+	Value string       // description of ZPL value - "bool", "array", "number -5"
+	Type  reflect.Type // type of Go value it could not be assigned to
+}
+
+func (e *UnmarshalTypeError) Error() string {
+	return "zpl: cannot unmarshal " + e.Value + " into " + e.Type.String()
+}
+
+// A SyntaxError is a description of a ZPL syntax error.
+//
+type SyntaxError struct {
+	msg  string // description of error
+	Line uint64 // error occurred on this line
+}
+
+func (e *SyntaxError) Error() string {
+	return strconv.FormatUint(e.Line, 10) + ":" + e.msg
+}
+
+// Unmarshal parses the ZPL-encoded data and stores the result in the value
+// pointed to by v.
+//
+// Unmarshal allocates maps, slices, and pointers as necessary while following
+// these rules:
+//
+// To unmarshal ZPL into a pointer, Unmarshal unmarshals the ZPL into the value
+// pointed at by the pointer.  If the pointer is nil, Unmarshal allocates a new
+// value for it to point to.
+//
+// To unmarshal ZPL into an interface value, Unmarshal unmarshals the ZPL into
+// the concrete value contained in the interface value.  If the interface value
+// is nil, that is, has no concrete value stored in it, Unmarshal stores a
+// map[string]interface{} in the interface value.
+//
+// If a ZPL value is not appropriate for a given target type, or if a ZPL number
+// overflows the target type, Unmarshal returns the error after processing the
+// remaining data.
+//
+func Unmarshal(src []byte, dst interface{}) error {
+	r := bytes.NewReader(src)
+	d := NewDecoder(r)
+	return d.Decode(dst)
+}
+
 // A Decoder represents a ZPL parser reading a particular input stream.  The
 // parser assumes that its input is encoded in UTF-8.
 //
@@ -351,7 +421,7 @@ func addValueToSection(section reflect.Value, name string, value string) error {
 	return nil
 }
 
-// Append value to target.
+// Append value to target or return a new value of type typ.
 func appendValue(typ reflect.Type, target reflect.Value, value string) (result reflect.Value, err error) {
 	if target.IsValid() {
 		typ = target.Type()
@@ -451,3 +521,21 @@ func appendValue(typ reflect.Type, target reflect.Value, value string) (result r
 	}
 	return
 }
+
+type (
+	eventType  int
+	parseEvent struct {
+		Type  eventType
+		Name  string
+		Value string
+	}
+	sink interface {
+		consume(*parseEvent) error
+	}
+)
+
+const (
+	addValue eventType = iota
+	endSection
+	startSection
+)

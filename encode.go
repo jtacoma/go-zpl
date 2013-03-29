@@ -5,12 +5,64 @@
 package zpl
 
 import (
+	"bytes"
 	"errors"
 	"io"
 	"reflect"
 	"strconv"
 	"strings"
 )
+
+// Marshal returns the ZPL encoding of v.
+//
+// Marshal traverses the value v recursively, using the following type-dependent
+// default encodings:
+//
+// Boolean values encode as ints (0 for false or 1 for true).
+//
+// Floating point and integer values encode as base-10 numbers.
+//
+// String values encode as strings.  Invalid character sequences will cause
+// Marshal to return an UnsupportedValueError.  Line breaks are invalid.
+//
+// Array and slice values encode as repetitions of the same property.
+//
+// Struct values encode as ZPL sections.  Each exported struct field becomes a
+// property in the section unless the field's tag is "-".  The "zpl" key in the
+// struct field's tag value is the key name.  Examples:
+//
+//   // Field is ignored by this package.
+//   Field int `zpl:"-"`
+//
+//   // Field appears in ZPL as property "name".
+//   Field int `zpl:"name"`
+//
+// The key name will be used if it's a non-empty string consisting of only
+// alphanumeric ([A-Za-z0-9]) characters.
+//
+// Map values encode as ZPL sections unless their tag is "*", in which case they
+// will be collapsed into their parent.  There can be only one "*"-tagged map in
+// any marshalled struct.  The map's key type must be string; the map keys are
+// used directly as property and sub-section names.
+//
+// Pointer values encode as the value pointed to.
+//
+// Interface values encode as the value contained in the interface.
+//
+// Channel, complex, and function values cannot be encoded in ZPL.  Attempting
+// to encode such a value causes Marshal to return an UnsupportedTypeError.
+//
+// ZPL cannot represent cyclic data structures and Marshal does not handle them.
+// Passing cyclic structures to Marshal will result in an infinite recursion.
+//
+func Marshal(v interface{}) ([]byte, error) {
+	var (
+		buf = &bytes.Buffer{}
+		e   = NewEncoder(buf)
+		err = e.Encode(v)
+	)
+	return buf.Bytes(), err
+}
 
 // An Encoder write ZPL to an output stream.
 //
