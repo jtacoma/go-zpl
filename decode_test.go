@@ -129,7 +129,7 @@ type ZdcfSocket struct {
 
 type ZdcfOptions struct {
 	Hwm       *int     `zpl:"hwm"`
-	Swap      *int64   `swap`
+	Swap      []int64  `swap`
 	Subscribe []string `zpl:"subscribe"`
 }
 
@@ -163,6 +163,12 @@ func TestUnmarshal_Reflect(t *testing.T) {
 	} else if *conf.Devices["main"].Sockets["frontend"].Options.Hwm != 1000 {
 		t.Errorf("main/frontend/hwm = %v",
 			*conf.Devices["main"].Sockets["frontend"].Options.Hwm)
+	}
+	if len(conf.Devices["main"].Sockets["frontend"].Options.Swap) != 1 {
+		t.Errorf("len(main/frontend/hwm) = %s", len(conf.Devices["main"].Sockets["frontend"].Options.Swap))
+	} else if conf.Devices["main"].Sockets["frontend"].Options.Swap[0] != 25000000 {
+		t.Errorf("main/frontend/hwm[0] = %v",
+			conf.Devices["main"].Sockets["frontend"].Options.Swap[0])
 	}
 	if conf.Devices["main"].Sockets["frontend"].Options.Subscribe[0] != "#2" {
 		t.Errorf("main/frontend/subscribe[0] = %v",
@@ -261,6 +267,9 @@ func TestDecoder_Decode_UnmarshalTypeError(t *testing.T) {
 	unmarshaltype := []decodeCase{
 		{raw0, make(map[string]bool), " bool"},
 		{raw0, make(map[string]map[string]string), " map[string]string"},
+		{[]byte("key = A"), make(map[string][]float32), " float32"},
+		{[]byte("key = A"), make(map[string][]int64), " int64"},
+		{[]byte("key = A"), make(map[string][]uint64), " uint64"},
 	}
 	for _, c := range unmarshaltype {
 		reader := bytes.NewReader(c.Raw)
@@ -273,4 +282,38 @@ func TestDecoder_Decode_UnmarshalTypeError(t *testing.T) {
 			t.Errorf("expected error message about %s, got %s.", c.ErrSub, err.Error())
 		}
 	}
+}
+
+func TestDecoder_Decode_Slice(t *testing.T) {
+	raw := []byte("key = 1")
+	test := func(v interface{}, g func(interface{}) int) {
+		if err := Unmarshal(raw, v); err != nil {
+			t.Errorf("error decoding into %T, got %T: %s", v, err, err.Error())
+		} else {
+			result := g(v)
+			if result != 1 {
+				t.Errorf("expected 1, got %v", result)
+			}
+		}
+	}
+	test(make(map[string][]float32), func(m interface{}) int { return int(m.(map[string][]float32)["key"][0]) })
+	test(make(map[string][]float64), func(m interface{}) int { return int(m.(map[string][]float64)["key"][0]) })
+	test(make(map[string][]int), func(m interface{}) int { return int(m.(map[string][]int)["key"][0]) })
+	test(make(map[string][]int16), func(m interface{}) int { return int(m.(map[string][]int16)["key"][0]) })
+	test(make(map[string][]int32), func(m interface{}) int { return int(m.(map[string][]int32)["key"][0]) })
+	test(make(map[string][]int64), func(m interface{}) int { return int(m.(map[string][]int64)["key"][0]) })
+	test(make(map[string][]uint), func(m interface{}) int { return int(m.(map[string][]uint)["key"][0]) })
+	test(make(map[string][]uint16), func(m interface{}) int { return int(m.(map[string][]uint16)["key"][0]) })
+	test(make(map[string][]uint32), func(m interface{}) int { return int(m.(map[string][]uint32)["key"][0]) })
+	test(make(map[string][]uint64), func(m interface{}) int { return int(m.(map[string][]uint64)["key"][0]) })
+	test(make(map[string]float32), func(m interface{}) int { return int(m.(map[string]float32)["key"]) })
+	test(make(map[string]float64), func(m interface{}) int { return int(m.(map[string]float64)["key"]) })
+	test(make(map[string]int), func(m interface{}) int { return int(m.(map[string]int)["key"]) })
+	test(make(map[string]int16), func(m interface{}) int { return int(m.(map[string]int16)["key"]) })
+	test(make(map[string]int32), func(m interface{}) int { return int(m.(map[string]int32)["key"]) })
+	test(make(map[string]int64), func(m interface{}) int { return int(m.(map[string]int64)["key"]) })
+	test(make(map[string]uint), func(m interface{}) int { return int(m.(map[string]uint)["key"]) })
+	test(make(map[string]uint16), func(m interface{}) int { return int(m.(map[string]uint16)["key"]) })
+	test(make(map[string]uint32), func(m interface{}) int { return int(m.(map[string]uint32)["key"]) })
+	test(make(map[string]uint64), func(m interface{}) int { return int(m.(map[string]uint64)["key"]) })
 }

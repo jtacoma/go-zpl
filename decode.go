@@ -497,21 +497,21 @@ func appendValue(typ reflect.Type, target reflect.Value, value string) (result r
 		result = reflect.ValueOf(value)
 	case reflect.Slice:
 		var next reflect.Value
-		switch typ.Elem().Kind() {
-		case reflect.String:
-			next = reflect.ValueOf(value)
-		}
-		if next.IsValid() {
-			if !target.IsValid() {
+		next, err = appendValue(typ.Elem(), next, value)
+		if err == nil && next.IsValid() {
+			result = target
+			if result.IsValid() && result.Type().Kind() == reflect.Interface {
+				result = reflect.ValueOf(result.Interface())
+			}
+			if !result.IsValid() {
 				result = reflect.MakeSlice(typ, 0, 4)
-			} else if target.Type().Kind() == reflect.Interface {
-				result = reflect.ValueOf(target.Interface())
-			} else {
-				result = target
 			}
 			result = reflect.Append(result, next)
-		} else {
-			err = errors.New("zpl: slice of " + typ.Elem().String() + " is not yet supported.")
+		} else if err == nil {
+			err = &UnmarshalTypeError{
+				Value: value,
+				Type:  typ.Elem(),
+			}
 		}
 	default:
 		err = &UnmarshalTypeError{
