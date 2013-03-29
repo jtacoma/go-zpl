@@ -263,6 +263,10 @@ func TestDecoder_Decode_UnmarshalFieldError(t *testing.T) {
 	}
 }
 
+type fieldMap struct {
+	Field map[int]interface{} `field`
+}
+
 func TestDecoder_Decode_UnmarshalTypeError(t *testing.T) {
 	unmarshaltype := []decodeCase{
 		{raw0, make(map[string]bool), " bool"},
@@ -270,7 +274,29 @@ func TestDecoder_Decode_UnmarshalTypeError(t *testing.T) {
 		{[]byte("key = A"), make(map[string][]float32), " float32"},
 		{[]byte("key = A"), make(map[string][]int64), " int64"},
 		{[]byte("key = A"), make(map[string][]uint64), " uint64"},
+		{[]byte("section\n    key = A"), make(map[string]bool), " bool"},
+		{[]byte("section\n    key = A"), make(map[string]map[int]bool), " map[int]bool"},
+		{[]byte("section\n    key = A"), make(map[string]map[string]bool), " bool"},
 	}
+	unmarshaltype = append(unmarshaltype, []decodeCase{
+		{
+			Raw: []byte("section\n    sub\n        key = A"),
+			Value: map[string]map[string]interface{}{
+				"section": map[string]interface{}{"sub": map[int]int{}},
+			},
+			ErrSub: " int",
+		},
+		{
+			Raw:    []byte("section\n    key = A"),
+			Value:  map[string]map[string]int{"section": nil},
+			ErrSub: " int",
+		},
+		{
+			Raw:    []byte("field\n    key = A"),
+			Value:  &fieldMap{},
+			ErrSub: " map[int]interface",
+		},
+	}...)
 	for _, c := range unmarshaltype {
 		reader := bytes.NewReader(c.Raw)
 		decoder := NewDecoder(reader)

@@ -6,7 +6,6 @@ package zpl
 
 import (
 	"bytes"
-	"errors"
 	"io"
 	"reflect"
 	"strconv"
@@ -142,7 +141,7 @@ func (e *Encoder) startSection(name string) error {
 
 func (e *Encoder) endSection() error {
 	if len(e.indent) < 4 {
-		return errors.New("zpl: unexpected end of section.")
+		panic("zpl: unexpected end of section.")
 	}
 	e.indent = e.indent[:len(e.indent)-4]
 	return nil
@@ -186,7 +185,9 @@ func marshalProperty(e *Encoder, name string, value reflect.Value) error {
 	case reflect.String:
 		e.addValue(name, value.String())
 	case reflect.Ptr, reflect.Interface:
-		marshalProperty(e, name, value.Elem())
+		if !value.IsNil() {
+			marshalProperty(e, name, value.Elem())
+		}
 	default:
 		// Silently fail to marshal what we don't know how to marshal.
 	}

@@ -133,6 +133,8 @@ func (d *Decoder) Decode(v interface{}) error {
 			return err
 		}
 	}
+	if fault != nil {
+	}
 	return fault
 }
 
@@ -293,27 +295,37 @@ func (b *builder) consume(e *parseEvent) error {
 
 func getSubSection(section reflect.Value, name string) (sub reflect.Value, err error) {
 	if section.Type().Kind() == reflect.Map {
-		if section.Type().Key().Kind() != reflect.String {
-			err = errors.New("zpl: map key type must be string")
+		sub = section.MapIndex(reflect.ValueOf(name))
+		if section.Type().Elem().Kind() == reflect.Interface {
+			if !sub.IsValid() || sub.IsNil() {
+				sub = reflect.ValueOf(make(map[string]interface{}))
+				section.SetMapIndex(reflect.ValueOf(name), sub)
+			} else {
+				sub = reflect.ValueOf(sub.Interface())
+			}
 			return
-		}
-		if section.IsNil() {
-			section.Set(reflect.MakeMap(section.Type()))
 		}
 		switch section.Type().Elem().Kind() {
 		case reflect.Ptr:
-			ptr := section.MapIndex(reflect.ValueOf(name))
-			if !ptr.IsValid() {
-				ptr = reflect.New(section.Type().Elem().Elem())
-				section.SetMapIndex(reflect.ValueOf(name), ptr)
-			} else if ptr.IsNil() {
-				ptr.Set(reflect.New(section.Type().Elem()))
+			if !sub.IsValid() {
+				sub = reflect.New(section.Type().Elem().Elem())
+				section.SetMapIndex(reflect.ValueOf(name), sub)
+			} else if sub.IsNil() {
+				sub.Set(reflect.New(section.Type().Elem()))
 			}
-			return ptr.Elem(), nil
-		case reflect.Interface:
-			newmap := reflect.ValueOf(make(map[string]interface{}))
-			section.SetMapIndex(reflect.ValueOf(name), newmap)
-			return newmap, nil
+			sub = sub.Elem()
+			return
+		case reflect.Map:
+			if section.Type().Elem().Key().Kind() != reflect.String {
+				err = &UnmarshalTypeError{
+					Value: "subsection \"" + name + "\"",
+					Type:  section.Type().Elem(),
+				}
+			} else if !sub.IsValid() || sub.IsNil() {
+				sub = reflect.MakeMap(section.Type().Elem())
+				section.SetMapIndex(reflect.ValueOf(name), sub)
+			}
+			return
 		default:
 			err = &UnmarshalTypeError{
 				Value: "subsection \"" + name + "\"",
@@ -343,7 +355,10 @@ func getSubSection(section reflect.Value, name string) (sub reflect.Value, err e
 		field := section.Field(fi)
 		if field.Type().Kind() == reflect.Map {
 			if field.Type().Key().Kind() != reflect.String {
-				err = errors.New("zpl: map key type must be string")
+				err = &UnmarshalTypeError{
+					Value: "subsection \"" + name + "\"",
+					Type:  field.Type(),
+				}
 				return
 			}
 			if field.IsNil() {
@@ -379,6 +394,12 @@ func getSubSection(section reflect.Value, name string) (sub reflect.Value, err e
 func addValueToSection(section reflect.Value, name string, value string) error {
 	switch section.Type().Kind() {
 	case reflect.Map:
+		if section.Type().Key().Kind() != reflect.String {
+			return &UnmarshalTypeError{
+				"value for key \"" + name + "\"",
+				section.Type(),
+			}
+		}
 		key := reflect.ValueOf(name)
 		existing := section.MapIndex(key)
 		adjusted, err := appendValue(section.Type().Elem(), existing, value)
@@ -431,16 +452,16 @@ func appendValue(typ reflect.Type, target reflect.Value, value string) (result r
 	}
 	switch typ.Kind() {
 	case reflect.Bool:
-		if parsed, err := strconv.ParseBool(value); err != nil {
-			err = errors.New("zpl: could not parse bool: " + value)
+		if parsed, err2 := strconv.ParseBool(value); err2 != nil {
+			err = &UnmarshalTypeError{Value: value, Type: typ}
 		} else if target.IsValid() && target.CanSet() {
 			target.SetBool(parsed)
 		} else {
 			result = reflect.ValueOf(parsed)
 		}
 	case reflect.Float32, reflect.Float64:
-		if parsed, err := strconv.ParseFloat(value, typ.Bits()); err != nil {
-			err = errors.New("zpl: could not parse float: " + value)
+		if parsed, err2 := strconv.ParseFloat(value, typ.Bits()); err2 != nil {
+			err = &UnmarshalTypeError{Value: value, Type: typ}
 		} else if target.IsValid() && target.CanSet() {
 			target.SetFloat(parsed)
 		} else {
@@ -452,8 +473,8 @@ func appendValue(typ reflect.Type, target reflect.Value, value string) (result r
 			}
 		}
 	case reflect.Int, reflect.Int16, reflect.Int32, reflect.Int64:
-		if parsed, err := strconv.ParseInt(value, 10, typ.Bits()); err != nil {
-			err = errors.New("zpl: could not parse int: " + value)
+		if parsed, err2 := strconv.ParseInt(value, 10, typ.Bits()); err2 != nil {
+			err = &UnmarshalTypeError{Value: value, Type: typ}
 		} else if target.IsValid() && target.CanSet() {
 			target.SetInt(parsed)
 		} else {
@@ -469,8 +490,8 @@ func appendValue(typ reflect.Type, target reflect.Value, value string) (result r
 			}
 		}
 	case reflect.Uint, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		if parsed, err := strconv.ParseUint(value, 10, typ.Bits()); err != nil {
-			err = errors.New("zpl: could not parse unsigned int: " + value)
+		if parsed, err2 := strconv.ParseUint(value, 10, typ.Bits()); err2 != nil {
+			err = &UnmarshalTypeError{Value: value, Type: typ}
 		} else if target.IsValid() && target.CanSet() {
 			target.SetUint(parsed)
 		} else {
