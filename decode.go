@@ -27,7 +27,8 @@ func (e *InvalidUnmarshalError) Error() string {
 	return "zpl: cannot unmarshal into " + e.Type.String() + "."
 }
 
-// An UnmarshalTypeError describes a ZPL value that was not appropriate for a value of a specific Go type. 
+// An UnmarshalFieldError describes describes a ZPL key that could not be matched to a map key or struct field.
+//
 type UnmarshalFieldError struct {
 	Key  string
 	Type reflect.Type
@@ -38,6 +39,7 @@ func (e *UnmarshalFieldError) Error() string {
 }
 
 // An UnmarshalTypeError describes a ZPL value that was not appropriate for a value of a specific Go type. 
+//
 type UnmarshalTypeError struct {
 	Value string       // description of ZPL value - "bool", "array", "number -5"
 	Type  reflect.Type // type of Go value it could not be assigned to

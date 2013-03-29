@@ -233,8 +233,8 @@ type UnmarshalFieldError struct {
 }
 ```
 
-An UnmarshalTypeError describes a ZPL value that was not appropriate for a value
-of a specific Go type.
+An UnmarshalFieldError describes describes a ZPL key that could not be matched
+to a map key or struct field.
 
 #### func (*UnmarshalFieldError) Error
 
