@@ -2,6 +2,8 @@
 --
     import "github.com/jtacoma/go-zpl"
 
+[![Build Status](https://drone.io/github.com/jtacoma/go-zpl/status.png)](https://drone.io/github.com/jtacoma/go-zpl/latest)
+
 The go-zpl package provides methods for consuming and producing data
 in the ZeroMQ Property Language (ZPL).
 
@@ -220,6 +222,42 @@ A SyntaxError is a description of a ZPL syntax error.
 
 ```go
 func (e *SyntaxError) Error() string
+```
+
+#### type UnmarshalFieldError
+
+```go
+type UnmarshalFieldError struct {
+	Key  string
+	Type reflect.Type
+}
+```
+
+An UnmarshalTypeError describes a ZPL value that was not appropriate for a value
+of a specific Go type.
+
+#### func (*UnmarshalFieldError) Error
+
+```go
+func (e *UnmarshalFieldError) Error() string
+```
+
+#### type UnmarshalTypeError
+
+```go
+type UnmarshalTypeError struct {
+	Value string       // description of ZPL value - "bool", "array", "number -5"
+	Type  reflect.Type // type of Go value it could not be assigned to
+}
+```
+
+An UnmarshalTypeError describes a ZPL value that was not appropriate for a value
+of a specific Go type.
+
+#### func (*UnmarshalTypeError) Error
+
+```go
+func (e *UnmarshalTypeError) Error() string
 ```
 
 ## License
