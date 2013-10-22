@@ -38,7 +38,7 @@ func (e *UnmarshalFieldError) Error() string {
 	return "zpl: no field tagged \"" + e.Key + "\" could be found on " + e.Type.String()
 }
 
-// An UnmarshalTypeError describes a ZPL value that was not appropriate for a value of a specific Go type. 
+// An UnmarshalTypeError describes a ZPL value that was not appropriate for a value of a specific Go type.
 //
 type UnmarshalTypeError struct {
 	Value string       // description of ZPL value - "bool", "array", "number -5"

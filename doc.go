@@ -8,9 +8,9 @@
 // ZPL is defined here: http://rfc.zeromq.org/spec:4.
 //
 //     package main
-//     
+//
 //     import "github.com/jtacoma/go-zpl"
-//     
+//
 //     var data = `
 //     endpoints
 //         worker1
@@ -20,18 +20,18 @@
 //             addr = 192.168.0.11
 //             port = 9999
 //     `
-//     
+//
 //     type Endpoint struct {
 //         Address string `zpl:"addr"`
 //         Port    int    `zpl:"port"`
 //     }
-//     
+//
 //     type Config struct {
 //         Endpoints map[string]*Endpoint `zpl:"endpoints"`
 //     }
-//     
+//
 //     var config Config
-//     
+//
 //     func main() {
 //         if err := zpl.Unmarshal([]byte(data), &config); err != nil {
 //             panic(err.Error())
