@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"strings"
 	"testing"
+	"testing/iotest"
 )
 
 var (
@@ -249,6 +250,13 @@ func TestDecoder_Decode_MixedLineEndings(t *testing.T) {
 		if err := NewDecoder(bytes.NewReader(w)).Decode(m); err != nil {
 			t.Errorf("while parsing weird line endings: %T: %s", err, err.Error())
 		}
+	}
+}
+
+func TestDecoder_Decode_Timeout(t *testing.T) {
+	m := &decodeCase{}
+	if err := NewDecoder(iotest.TimeoutReader(bytes.NewReader(raw0))).Decode(m); err == nil {
+		t.Errorf("expected error, got success.")
 	}
 }
 
