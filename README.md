@@ -2,7 +2,7 @@
 --
     import "github.com/jtacoma/go-zpl"
 
-[![Build Status](https://drone.io/github.com/jtacoma/go-zpl/status.png)](https://drone.io/github.com/jtacoma/go-zpl/latest)
+[![Build Status](https://drone.io/github.com/jtacoma/go-zpl/status.png)](https://drone.io/github.com/jtacoma/go-zpl/latest) [![Build Status](https://travis-ci.org/jtacoma/go-zpl.png)](https://travis-ci.org/jtacoma/go-zpl)
 
 The go-zpl package provides methods for consuming and producing data
 in the ZeroMQ Property Language (ZPL).
