@@ -509,12 +509,10 @@ func appendValue(typ reflect.Type, target reflect.Value, value string) (result r
 			}
 		}
 	case reflect.Ptr:
-		if target.IsNil() {
-			target.Set(reflect.New(typ.Elem()))
-		}
+		result = reflect.New(typ.Elem())
 		var elem reflect.Value
-		if elem, err = appendValue(typ.Elem(), target.Elem(), value); err == nil && elem.IsValid() {
-			target.Elem().Set(elem)
+		if elem, err = appendValue(typ.Elem(), elem, value); err == nil {
+			result.Elem().Set(elem)
 		}
 	case reflect.String:
 		result = reflect.ValueOf(value)
@@ -530,11 +528,6 @@ func appendValue(typ reflect.Type, target reflect.Value, value string) (result r
 				result = reflect.MakeSlice(typ, 0, 4)
 			}
 			result = reflect.Append(result, next)
-		} else if err == nil {
-			err = &UnmarshalTypeError{
-				Value: value,
-				Type:  typ.Elem(),
-			}
 		}
 	default:
 		err = &UnmarshalTypeError{

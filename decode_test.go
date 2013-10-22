@@ -330,6 +330,16 @@ func TestDecoder_Decode_Slice(t *testing.T) {
 			}
 		}
 	}
+	test(make(map[string][]*float32), func(m interface{}) int { return int(*m.(map[string][]*float32)["key"][0]) })
+	test(make(map[string][]*float64), func(m interface{}) int { return int(*m.(map[string][]*float64)["key"][0]) })
+	test(make(map[string][]*int), func(m interface{}) int { return int(*m.(map[string][]*int)["key"][0]) })
+	test(make(map[string][]*int16), func(m interface{}) int { return int(*m.(map[string][]*int16)["key"][0]) })
+	test(make(map[string][]*int32), func(m interface{}) int { return int(*m.(map[string][]*int32)["key"][0]) })
+	test(make(map[string][]*int64), func(m interface{}) int { return int(*m.(map[string][]*int64)["key"][0]) })
+	test(make(map[string][]*uint), func(m interface{}) int { return int(*m.(map[string][]*uint)["key"][0]) })
+	test(make(map[string][]*uint16), func(m interface{}) int { return int(*m.(map[string][]*uint16)["key"][0]) })
+	test(make(map[string][]*uint32), func(m interface{}) int { return int(*m.(map[string][]*uint32)["key"][0]) })
+	test(make(map[string][]*uint64), func(m interface{}) int { return int(*m.(map[string][]*uint64)["key"][0]) })
 	test(make(map[string][]float32), func(m interface{}) int { return int(m.(map[string][]float32)["key"][0]) })
 	test(make(map[string][]float64), func(m interface{}) int { return int(m.(map[string][]float64)["key"][0]) })
 	test(make(map[string][]int), func(m interface{}) int { return int(m.(map[string][]int)["key"][0]) })
